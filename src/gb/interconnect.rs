@@ -5,15 +5,21 @@ const VRAM_SIZE: usize = 8 * 1024; // 8K
 
 #[allow(dead_code)]
 pub struct Interconnect{
+	boot_rom: Box<[u8]>,
+	cart_rom: Box<[u8]>,
+
 	ram: [u8 ; RAM_SIZE],
 	vram: [u8 ; VRAM_SIZE]
 }
 
-impl Default for Interconnect {
-	fn default() -> Interconnect {
+impl Interconnect {
+	pub fn new(boot_rom: Box<[u8]>, cart_rom: Box<[u8]>) -> Interconnect {
 		Interconnect {
-			ram: [3u8 ; RAM_SIZE],
-			vram: [3u8 ; VRAM_SIZE]
+			boot_rom: boot_rom,
+			cart_rom: cart_rom,
+
+			ram: [0u8 ; RAM_SIZE],
+			vram: [0u8 ; VRAM_SIZE]
 		}
 	}
 }
