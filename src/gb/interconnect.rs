@@ -1,5 +1,6 @@
 use std::fmt;
 
+const BOOT_ROM_SIZE: usize = 256;
 const RAM_SIZE: usize = 8 * 1024; // 8K
 const VRAM_SIZE: usize = 8 * 1024; // 8K
 
@@ -14,6 +15,8 @@ pub struct Interconnect{
 
 impl Interconnect {
 	pub fn new(boot_rom: Box<[u8]>, cart_rom: Box<[u8]>) -> Interconnect {
+		assert!(boot_rom.len() == BOOT_ROM_SIZE, "Invalid boot rom size");
+
 		Interconnect {
 			boot_rom: boot_rom,
 			cart_rom: cart_rom,

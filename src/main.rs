@@ -14,7 +14,7 @@ fn main() {
     let cart_rom_buffer = read_rom(cart_rom_filename);
 
     println!("Boot ROM size: {} bytes", boot_rom_buffer.len());
-    println!("Cart ROM size: {} bytes", cart_rom_buffer.len());
+    println!("Cart ROM size: {} Kbytes", cart_rom_buffer.len());
 
     let gb = gb::GB::new(boot_rom_buffer, cart_rom_buffer);
     println!("{:#?}", gb);
