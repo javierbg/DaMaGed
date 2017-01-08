@@ -1,5 +1,6 @@
 use std::fmt;
-use super::{mem_map, rom};
+use super::{mem_map, rom, gbio};
+use super::mem_map::Addr;
 
 #[allow(dead_code)]
 pub struct Interconnect{
@@ -11,9 +12,9 @@ pub struct Interconnect{
 
 	sprite_ram: [u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
 
-	high_ram: [u8 ; mem_map::HIGH_RAM_LENGTH as usize],
+	io: gbio::GBIO,
 
-	interrupt_enable_register: u8
+	high_ram: [u8 ; mem_map::HIGH_RAM_LENGTH as usize]
 }
 
 impl Interconnect {
@@ -27,9 +28,20 @@ impl Interconnect {
 
 			sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
 
-			high_ram: [0u8 ; mem_map::HIGH_RAM_LENGTH as usize],
+			io: gbio::GBIO::new(),
 
-			interrupt_enable_register: 0u8
+			high_ram: [0u8 ; mem_map::HIGH_RAM_LENGTH as usize]
+		}
+	}
+
+	pub fn read_byte(&self, addr: u16) -> u8 {
+		let real_addr = mem_map::map_addr(addr);
+
+		match real_addr {
+			Addr::Bank0(_) | Addr::BankN(_) => {
+				self.rom.read_rom(real_addr, self.io.boot_sequence())
+			},
+			_ => 0u8
 		}
 	}
 }

@@ -5,6 +5,7 @@ mod gb;
 mod cpu;
 pub mod mem_map;
 mod rom;
+mod gbio;
 
 pub use self::gb::GB;
 pub use self::interconnect::Interconnect;

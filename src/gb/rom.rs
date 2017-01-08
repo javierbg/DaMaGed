@@ -24,19 +24,19 @@ impl ROM {
 		}
 	}
 
-	pub fn read_rom(&self, addr: u16, boot_sequence: bool) -> u8{
+	pub fn read_rom(&self, addr: mem_map::Addr, boot_sequence: bool) -> u8{
 		match addr {
-			mem_map::CARTRIDGE_BANK0_START ... mem_map::CARTRIDGE_BANK0_END => {
-				if boot_sequence && (addr < BOOT_ROM_SIZE){
-					self.boot_rom[addr as usize]
+			mem_map::Addr::Bank0(i) => {
+				if boot_sequence && (i < BOOT_ROM_SIZE){
+					self.boot_rom[i as usize]
 				}
 				else {
-					self.cart_rom[addr as usize]
+					self.cart_rom[i as usize]
 				}
 			},
 
-			mem_map::CARTRIDGE_BANKN_START ... mem_map::CARTRIDGE_BANKN_END => {
-				let real_rom_addr: u16 = (self.current_rom_bank * mem_map::CARTRIDGE_BANK_LENGTH) + addr;
+			mem_map::Addr::BankN(i) => {
+				let real_rom_addr: u16 = (self.current_rom_bank * mem_map::CARTRIDGE_BANK_LENGTH) + i;
 				self.cart_rom[real_rom_addr as usize]
 			},
 
@@ -48,9 +48,9 @@ impl ROM {
 
 	// Kind of a contradiction, but this should model the act of "writing" to the ROM, which
 	// in a real cartridge would communicate with the Memory Bank Controller (MBC)
-	pub fn write_rom(&mut self, addr: u16, val: u8) {
+	pub fn write_rom(&mut self, addr: mem_map::Addr, val: u8) {
 		match addr {
-			0x2000u16 => { //TODO: extract to constant?
+			mem_map::Addr::Bank0(0x2000u16) => { //TODO: Extract to constant?
 				self.current_rom_bank = val as u16;
 			}
 
