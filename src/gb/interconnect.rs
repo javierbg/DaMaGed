@@ -1,16 +1,24 @@
 use std::fmt;
+use super::mem_map;
 
 const BOOT_ROM_SIZE: usize = 256;
-const RAM_SIZE: usize = 8 * 1024; // 8K
-const VRAM_SIZE: usize = 8 * 1024; // 8K
 
 #[allow(dead_code)]
 pub struct Interconnect{
 	boot_rom: Box<[u8]>,
 	cart_rom: Box<[u8]>,
 
-	ram: [u8 ; RAM_SIZE],
-	vram: [u8 ; VRAM_SIZE]
+	current_rom_bank: u8,
+
+	vram: [u8 ; mem_map::VRAM_LENGTH as usize],
+
+	internal_ram: [u8 ; mem_map::INTERNAL_RAM_LENGTH as usize],
+
+	sprite_ram: [u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+
+	high_ram: [u8 ; mem_map::HIGH_RAM_LENGTH as usize],
+
+	interrupt_enable_register: u8
 }
 
 impl Interconnect {
@@ -21,8 +29,17 @@ impl Interconnect {
 			boot_rom: boot_rom,
 			cart_rom: cart_rom,
 
-			ram: [0u8 ; RAM_SIZE],
-			vram: [0u8 ; VRAM_SIZE]
+			current_rom_bank: 1u8,
+
+			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
+
+			internal_ram: [0u8 ; mem_map::INTERNAL_RAM_LENGTH as usize],
+
+			sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+
+			high_ram: [0u8 ; mem_map::HIGH_RAM_LENGTH as usize],
+
+			interrupt_enable_register: 0u8
 		}
 	}
 }
