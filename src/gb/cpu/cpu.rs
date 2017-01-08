@@ -1,4 +1,4 @@
-use super::Interconnect;
+use super::super::Interconnect;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -39,7 +39,9 @@ impl Default for Cpu {
 impl Cpu {
     pub fn run(&mut self, interconnect: &mut Interconnect) {
         loop {
-            // DO STUFF!
+            // get instruction and instruction length from memory with pc
+            // increment pc with instruction length
+            // execute instruction
         }
     }
 }

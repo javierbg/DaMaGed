@@ -1,9 +1,9 @@
 use super::Interconnect;
-use super::Cpu;
+use super::cpu;
 
 #[derive(Debug)]
 pub struct GB {
-	cpu: Cpu,
+	cpu: cpu::Cpu,
 	interconnect: Interconnect
 }
 
@@ -11,7 +11,7 @@ pub struct GB {
 impl GB {
 	pub fn new(boot_rom: Box<[u8]>, cart_rom: Box<[u8]>) -> GB {
 		GB {
-			cpu: Cpu::default(),
+			cpu: cpu::Cpu::default(),
 			interconnect: Interconnect::new(boot_rom, cart_rom)
 		}
 	}

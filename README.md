@@ -7,3 +7,7 @@
 [DuoDreamer's Dreamscape - Overview of the GB's Memory Map](http://gameboy.mongenel.com/dmg/asmmemmap.html)
 
 [DuoDreamer's Dreamscape - GB's Opcodes Summary](http://gameboy.mongenel.com/dmg/opcodes.html)
+
+[pastraiser.com - Gameboy CPU (LR35902) instruction set](http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
+
+[The Ultimate Game Boy Talk - Michael Steil (33c3)](https://www.youtube.com/watch?v=HyzD8pNlpwI)
