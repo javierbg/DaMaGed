@@ -1,3 +1,6 @@
+use super::super::Interconnect;
+
+#[derive(Debug)]
 pub enum Instruction {
 	Load8(Reg8, Reg8),
 	Load8Imm(Reg8, u8),
@@ -76,9 +79,14 @@ pub enum Instruction {
 	Ret, // Return from subroutine
 	RetC(Condition), // Return only if condition is met
 	// No need for RST, can use Call
+
+	// TODO: Game Boy specific instructions (those not on the Intel 8080 and the Z80)
+
+	Unimplemented // For debug purposes only
 }
 
 // 8-bit register
+#[derive(Debug)]
 pub enum Reg8 {
 	A, B, C, D, E, H, L,
 	//Memory cell pointed by...
@@ -88,11 +96,42 @@ pub enum Reg8 {
 }
 
 // 16-bit register
+#[derive(Debug)]
 pub enum Reg16 {
 	BC, DE, HL, SP
 }
 
 // Jump conditions
+#[derive(Debug)]
 pub enum Condition {
 	C, NC, Z, NZ
+}
+
+pub fn decode_opcode(opcode: u8) -> Instruction {
+	match opcode {
+		0x00 => Instruction::Nop,
+		0x31 => Instruction::Load16Imm(Reg16::SP, 0u16),
+		_ => Instruction::Unimplemented
+	}
+}
+
+// Returns an instruction along with the length of it, in order to update the PC afterwards
+pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instruction, u8) {
+	let opcode = interconnect.read_byte(pc);
+	let mut inst_length: u8 = 1;
+	let decoded = decode_opcode(opcode);
+
+	let inst = match decoded {
+		Instruction::Load16Imm(r, _) => {
+			inst_length += 2;
+			let lsb = interconnect.read_byte(pc+1);
+			let msb = interconnect.read_byte(pc+2);
+			let b: u16 = ((msb as u16) << 8) + (lsb as u16);
+			Instruction::Load16Imm(r, b)
+		},
+
+		_ => decoded
+	};
+
+	(inst, inst_length)
 }
