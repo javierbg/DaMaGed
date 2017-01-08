@@ -44,6 +44,21 @@ impl Interconnect {
 			_ => 0u8
 		}
 	}
+
+	pub fn write_byte(&mut self, addr: u16, val: u8) {
+		let real_addr = mem_map::map_addr(addr);
+
+		match real_addr {
+			Addr::VRam(a) => {
+				println!("Writing {:02X} into VRAM address {:04X}", val, addr);
+				self.vram[a as usize] = val;
+			},
+
+			_ => {
+				panic!("Writing to {:04X} not implemented", addr);
+			}
+		};
+	}
 }
 
 impl fmt::Debug for Interconnect {

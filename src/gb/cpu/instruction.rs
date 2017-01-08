@@ -8,6 +8,12 @@ pub enum Instruction {
 	Load16(Reg16, Reg16),
 	Load16Imm(Reg16, u16),
 
+	// Special Game Boy instructions
+	LoadHLPostinc, // (HL) <- A, HL <- HL + 1
+	LoadAPostinc,  // A <- (HL), HL <- HL + 1
+	LoadHLPredec,  // HL <- HL - 1, (HL) <- A
+	LoadAPredec,   // HL <- HL - 1, A <- (HL)
+
 	Push(Reg16),
 	Pop(Reg16),
 
@@ -80,7 +86,7 @@ pub enum Instruction {
 	RetC(Condition), // Return only if condition is met
 	// No need for RST, can use Call
 
-	// TODO: Game Boy specific instructions (those not on the Intel 8080 and the Z80)
+	PrefixCB, // Used to denote that a CB prefixed instruction is next, not a full instruction (used internally only)
 
 	Unimplemented // For debug purposes only
 }
@@ -107,11 +113,21 @@ pub enum Condition {
 	C, NC, Z, NZ
 }
 
-pub fn decode_opcode(opcode: u8) -> Instruction {
+fn decode_opcode(opcode: u8) -> Instruction {
 	match opcode {
 		0x00 => Instruction::Nop,
+		0x21 => Instruction::Load16Imm(Reg16::HL, 0u16),
 		0x31 => Instruction::Load16Imm(Reg16::SP, 0u16),
+		0x32 => Instruction::LoadHLPredec,
 		0xAF => Instruction::Xor(Reg8::A),
+		0xCB => Instruction::PrefixCB,
+		_ => Instruction::Unimplemented
+	}
+}
+
+fn decode_cb_opcode(opcode: u8) -> Instruction {
+	match opcode {
+		0x7c => Instruction::Bit(Reg8::H, 7),
 		_ => Instruction::Unimplemented
 	}
 }
@@ -123,6 +139,11 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instructio
 	let decoded = decode_opcode(opcode);
 
 	let inst = match decoded {
+		Instruction::PrefixCB => {
+			inst_length += 1;
+			get_next_cb_instruction(interconnect, pc)
+		},
+
 		Instruction::Load16Imm(r, _) => {
 			inst_length += 2;
 			let lsb = interconnect.read_byte(pc+1);
@@ -135,4 +156,9 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instructio
 	};
 
 	(inst, inst_length)
+}
+
+fn get_next_cb_instruction(interconnect: &Interconnect, pc: u16) -> Instruction {
+	let cb_opcode = interconnect.read_byte(pc+1);
+	decode_cb_opcode(cb_opcode)
 }
