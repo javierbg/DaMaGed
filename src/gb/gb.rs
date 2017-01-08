@@ -19,4 +19,8 @@ impl GB {
 	pub fn run(&mut self) {
 		self.cpu.run(&mut self.interconnect);
 	}
+
+	/*fn read_byte(&self, addr: u16) -> u8 {
+
+	}*/
 }

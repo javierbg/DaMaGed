@@ -16,7 +16,7 @@ pub struct Cpu {
     pc: u16,
 }
 
-const INIT_ADDRESS: u16 = 0x0100;
+const INIT_ADDRESS: u16 = 0x0000;
 
 impl Default for Cpu {
 	fn default() -> Cpu {
@@ -38,6 +38,8 @@ impl Default for Cpu {
 #[allow(dead_code)]
 impl Cpu {
     pub fn run(&mut self, interconnect: &mut Interconnect) {
-
+        loop {
+            // DO STUFF!
+        }
     }
 }

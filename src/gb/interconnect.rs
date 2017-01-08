@@ -1,14 +1,9 @@
 use std::fmt;
-use super::mem_map;
-
-const BOOT_ROM_SIZE: usize = 256;
+use super::{mem_map, rom};
 
 #[allow(dead_code)]
 pub struct Interconnect{
-	boot_rom: Box<[u8]>,
-	cart_rom: Box<[u8]>,
-
-	current_rom_bank: u8,
+	rom: rom::ROM,
 
 	vram: [u8 ; mem_map::VRAM_LENGTH as usize],
 
@@ -23,13 +18,8 @@ pub struct Interconnect{
 
 impl Interconnect {
 	pub fn new(boot_rom: Box<[u8]>, cart_rom: Box<[u8]>) -> Interconnect {
-		assert!(boot_rom.len() == BOOT_ROM_SIZE, "Invalid boot rom size");
-
 		Interconnect {
-			boot_rom: boot_rom,
-			cart_rom: cart_rom,
-
-			current_rom_bank: 1u8,
+			rom: rom::ROM::new(boot_rom, cart_rom),
 
 			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
 
