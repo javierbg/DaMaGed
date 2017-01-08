@@ -16,8 +16,9 @@ fn main() {
     println!("Boot ROM size: {} bytes", boot_rom_buffer.len());
     println!("Cart ROM size: {} Kbytes", cart_rom_buffer.len());
 
-    let gb = gb::GB::new(boot_rom_buffer, cart_rom_buffer);
-    println!("{:#?}", gb);
+    let mut gb = gb::GB::new(boot_rom_buffer, cart_rom_buffer);
+
+    gb.run();
 }
 
 fn read_rom<P: AsRef<Path>>(path: P) -> Box<[u8]> {

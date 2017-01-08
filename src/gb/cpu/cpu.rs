@@ -46,15 +46,28 @@ impl Default for Cpu {
 #[allow(dead_code)]
 impl Cpu {
     pub fn run(&mut self, interconnect: &mut Interconnect) {
+        let mut new_flags: u8 = self.f;
+
         loop {
+            println!("{:?}", self);
             // get instruction and instruction length from memory with pc
             let (instruction, inst_len) = instruction::get_next_instruction(interconnect, self.pc);
+            println!("{:04X} : {:?}", self.pc, instruction);
+
             // increment pc with instruction length
+            self.pc += inst_len;
+
             // execute instruction
             match instruction {
                 Instruction::Nop => {},
                 Instruction::Load16Imm(r, v) => {
                     self.load_16bit_register(r, v);
+                },
+
+                Instruction::Xor(r) => {
+                    let newval = self.a ^ self.read_8bit_register(interconnect, r);
+                    new_flags = if newval == 0x00 { 0x80 } else { 0x00 };
+                    self.a = newval;
                 },
 
                 Instruction::Unimplemented => {
@@ -65,6 +78,37 @@ impl Cpu {
                     panic!("Instruction `{:?}' not implemented yet", instruction);
                 }
             };
+
+            //Update flags
+            self.f = new_flags;
+        }
+    }
+
+    fn read_8bit_register(&self, interconnect: &Interconnect, reg: instruction::Reg8) -> u8 {
+        match reg {
+            instruction::Reg8::A => self.a,
+            instruction::Reg8::B => self.b,
+            instruction::Reg8::C => self.c,
+            instruction::Reg8::D => self.d,
+            instruction::Reg8::E => self.e,
+            instruction::Reg8::H => self.h,
+            instruction::Reg8::L => self.l,
+
+            instruction::Reg8::MemBC => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::BC)),
+            instruction::Reg8::MemDE => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::DE)),
+            instruction::Reg8::MemHL => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::HL)),
+            instruction::Reg8::MemSP => interconnect.read_byte(self.sp),
+
+            instruction::Reg8::Mem(addr) => interconnect.read_byte(addr),
+        }
+    }
+
+    fn read_16bit_register(&self, reg: instruction::Reg16) -> u16 {
+        match reg {
+            instruction::Reg16::BC => ((self.b as u16) << 8) + (self.c as u16),
+            instruction::Reg16::DE => ((self.d as u16) << 8) + (self.e as u16),
+            instruction::Reg16::HL => ((self.h as u16) << 8) + (self.l as u16),
+            instruction::Reg16::SP => self.sp,
         }
     }
 

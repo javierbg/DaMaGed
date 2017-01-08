@@ -111,14 +111,15 @@ pub fn decode_opcode(opcode: u8) -> Instruction {
 	match opcode {
 		0x00 => Instruction::Nop,
 		0x31 => Instruction::Load16Imm(Reg16::SP, 0u16),
+		0xAF => Instruction::Xor(Reg8::A),
 		_ => Instruction::Unimplemented
 	}
 }
 
 // Returns an instruction along with the length of it, in order to update the PC afterwards
-pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instruction, u8) {
+pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instruction, u16) {
 	let opcode = interconnect.read_byte(pc);
-	let mut inst_length: u8 = 1;
+	let mut inst_length: u16 = 1;
 	let decoded = decode_opcode(opcode);
 
 	let inst = match decoded {
