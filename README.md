@@ -1,3 +1,25 @@
+# Rusty Boy
+
+(WIP name)
+
+This is a Game Boy emulator written in the [Rust programming language](https://www.rust-lang.org/en-US/).
+
+This is just a hobby project that, realistically, will never get to be finished. My wish is to, at least, get it to show some graphics, although that's pretty far for now.
+
+The code structure is initially inspired by that of [Rustendo64](https://github.com/yupferris/rustendo64). [yupferris](https://github.com/yupferris), the author of Rustendo64, decided to stream the development process on Twitch (more info and previous streams on the Rustendo64 repo) and that's what gave me the idea to start this.
+
+Please, note that I'm a total beginner in Rust. If you have any suggestions, I encourage you to submit an issue/pull request.
+
+# License
+
+This project is licensed under the [GNU General Public License Version 3](https://github.com/javierbg/RustyBoy/blob/master/LICENSE).
+
+## Contributions
+
+Any submitted contribution shall be licensed as above unless explicitly stated, without any additional terms or conditions.
+
+# Useful links
+
 [RealBoy Emulator - The Nintendo® Game Boy™](https://realboyemulator.wordpress.com/2013/01/01/the-nintendo-game-boy-1/)
 
 [Game Boy CPU Manual](http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf)
