@@ -1,6 +1,6 @@
 use super::super::Interconnect;
 use super::instruction;
-use super::instruction::Instruction;
+use super::instruction::ExInstruction;
 
 #[allow(dead_code)]
 #[derive(Debug)]
@@ -49,45 +49,45 @@ impl Cpu {
         let mut new_flags: u8 = self.f;
 
         loop {
-            println!("{:?}", self);
+            //println!("{:?}", self);
             // get instruction and instruction length from memory with pc
-            let (instruction, inst_len) = instruction::get_next_instruction(itct, self.pc);
-            println!("{:04X} : {:?}", self.pc, instruction);
+            let instruction = instruction::get_next_instruction(itct, self.pc);
+            println!("{:04X} : {}", self.pc, instruction);
 
             // increment pc with instruction length
-            self.pc = self.pc.wrapping_add(inst_len);
+            self.pc = self.pc.wrapping_add(instruction.bytes.len() as u16);
 
             // execute instruction
-            match instruction {
-                Instruction::Nop => {},
+            match instruction.ex {
+                ExInstruction::Nop => {},
 
-                Instruction::Load8(dst, src) => {
+                ExInstruction::Load8(dst, src) => {
                     let val = self.read_8bit_register(itct, src);
                     self.load_8bit_register(itct, dst, val);
                 }
 
-                Instruction::Load8Imm(r, v) => {
+                ExInstruction::Load8Imm(r, v) => {
                     self.load_8bit_register(itct, r, v);
                 },
 
-                Instruction::Load16Imm(r, v) => {
+                ExInstruction::Load16Imm(r, v) => {
                     self.load_16bit_register(r, v);
                 },
 
-                Instruction::LoadHLPredec => {
+                ExInstruction::LoadHLPredec => {
                     let a: u8 = self.a;
                     let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_sub(1u16);
                     self.load_16bit_register(instruction::Reg16::HL, hl);
                     self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
                 },
 
-                Instruction::Xor(r) => {
+                ExInstruction::Xor(r) => {
                     let newval = self.a ^ self.read_8bit_register(itct, r);
                     new_flags = if newval == 0x00 { 0x80 } else { 0x00 };
                     self.a = newval;
                 },
 
-                Instruction::Increment(r) => {
+                ExInstruction::Increment(r) => {
                     let val = self.read_8bit_register(itct, r);
                     let newval = val.wrapping_add(1u8);
                     self.load_8bit_register(itct, r, newval);
@@ -98,25 +98,25 @@ impl Cpu {
                     new_flags = if (((val & 0x0F) + 1u8) & 0xF0) != 0 {new_flags | 0x20} else {new_flags & 0xD0};
                 },
 
-                Instruction::Bit(r, b) => {
+                ExInstruction::Bit(r, b) => {
                     let v = self.read_8bit_register(itct, r);
                     let bit = (v >> b) & 0x01;
                     let old_flags = new_flags & 0x10; // Set ZNH to 0
                     new_flags = if bit == 0x00 { old_flags | (0xA0) } else { old_flags | (0x20) };
                 },
 
-                Instruction::JrC(j, c) => {
+                ExInstruction::JrC(j, c) => {
                     if self.cond(c) {
                         self.pc = self.pc.wrapping_add(j as u16);
                     }
                 },
 
-                Instruction::Unimplemented => {
+                ExInstruction::Unimplemented => {
                     panic!("Uninmplemented instruction");
                 },
 
                 _ => {
-                    panic!("Instruction `{:?}' not implemented yet", instruction);
+                    panic!("Instruction `{:?}' not implemented yet", instruction.ex);
                 }
             };
 
@@ -143,6 +143,7 @@ impl Cpu {
             instruction::Reg8::MemC  => interconnect.read_byte(0xFF00u16 + (self.c as u16)),
 
             instruction::Reg8::Mem(addr) => interconnect.read_byte(addr),
+            instruction::Reg8::MemH(addr) => interconnect.read_byte(0xFF00u16 + (addr as u16)),
         }
     }
 
@@ -164,6 +165,7 @@ impl Cpu {
             instruction::Reg8::MemC  => interconnect.write_byte(0xFF00u16 + (self.c as u16), val),
 
             instruction::Reg8::Mem(addr) => interconnect.write_byte(addr, val),
+            instruction::Reg8::MemH(addr) => interconnect.write_byte(0xFF00u16 + (addr as u16), val),
         };
     }
 

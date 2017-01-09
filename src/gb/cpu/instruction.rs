@@ -1,7 +1,52 @@
 use super::super::Interconnect;
+use std::fmt;
+use std::iter;
 
+// Whole data of an instruction. Because it holds the original bytes, it can be
+// dissassembled.
+pub struct Instruction {
+	pub ex: ExInstruction,
+	pub bytes: Vec<u8>,
+}
+
+impl Instruction {
+	fn mnemonic(&self) -> String {
+		let ex = &self.ex;
+		match ex {
+			&ExInstruction::Nop => "nop".into(),
+			&ExInstruction::Load8(dst, src) => format!("ld {},{}",dst,src),
+			&ExInstruction::Load8Imm(dst, val) => format!("ld {},0{:02x}h",dst,val),
+			&ExInstruction::Load16(dst, src) => format!("ld {},{}",dst,src),
+			&ExInstruction::Load16Imm(dst, val) => format!("ld {},0{:04x}h",dst,val),
+			&ExInstruction::JrC(jr, cond) => format!("jr {},${}",cond,jr),
+			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
+			&ExInstruction::Xor(r) => format!("xor {}", r),
+			&ExInstruction::Increment(r) => format!("inc {}",r),
+
+			_ => format!("{:?}", self.ex)
+		}
+	}
+}
+
+impl fmt::Display for Instruction {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let mn = self.mnemonic();
+		let pad: String = iter::repeat(" ").take(20-mn.len()).collect();
+
+		// Get bytes representation
+		let mut bs: String = "".into();
+		for b in &self.bytes {
+			bs = format!("{} {:02X}", bs, b);
+		}
+
+		write!(f, "{}{}; {}", mn, pad, bs)
+	}
+}
+
+// Executable instruction. This is what the CPU will use to execute the instruction
+// with less efort
 #[derive(Debug)]
-pub enum Instruction {
+pub enum ExInstruction {
 	Load8(Reg8, Reg8),
 	Load8Imm(Reg8, u8),
 
@@ -91,6 +136,7 @@ pub enum Instruction {
 	Unimplemented // For debug purposes only
 }
 
+
 // 8-bit register
 #[derive(Debug, Copy, Clone)]
 pub enum Reg8 {
@@ -100,84 +146,147 @@ pub enum Reg8 {
 	//Memory cell pointed by 0xFF00 + ...
 	MemC,
 	//Memory cell pointed by literal value...
-	Mem(u16)
+	Mem(u16),
+	//Memory cell at zero page (high ram) pointed by literal value of...
+	MemH(u8)
+}
+
+impl fmt::Display for Reg8 {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let s: String = match *self {
+			Reg8::MemBC => "(bc)".into(),
+			Reg8::MemDE => "(de)".into(),
+			Reg8::MemHL => "(hl)".into(),
+			Reg8::MemSP => "(sp)".into(),
+			Reg8::MemC  => "(0ff00h+c)".into(),
+			Reg8::Mem(a) => format!("(0{:04x}h)", a),
+			Reg8::MemH(a) => format!("(0ff00h+0{:02x}h)", a),
+			_ => format!("{:?}", *self)
+		};
+		write!(f, "{}", s.to_lowercase())
+	}
 }
 
 // 16-bit register
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Reg16 {
 	BC, DE, HL, SP
 }
 
+impl fmt::Display for Reg16 {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let s: String = format!("{:?}", * self).to_lowercase();
+		write!(f, "{}", s)
+	}
+}
+
 // Jump conditions
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Condition {
 	C, NC, Z, NZ
 }
 
-fn decode_opcode(opcode: u8) -> Instruction {
-	match opcode {
-		0x00 => Instruction::Nop,
-		0xE2 => Instruction::Load8(Reg8::MemC, Reg8::A),
-		0x0E => Instruction::Load8Imm(Reg8::C, 0u8),
-		0x3E => Instruction::Load8Imm(Reg8::A, 0u8),
-		0x20 => Instruction::JrC(0i8, Condition::NZ),
-		0x21 => Instruction::Load16Imm(Reg16::HL, 0u16),
-		0x31 => Instruction::Load16Imm(Reg16::SP, 0u16),
-		0x32 => Instruction::LoadHLPredec,
-		0xAF => Instruction::Xor(Reg8::A),
-		0x0C => Instruction::Increment(Reg8::C),
-		0xCB => Instruction::PrefixCB,
-		_ => Instruction::Unimplemented
+impl fmt::Display for Condition {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let s: String = format!("{:?}", * self).to_lowercase();
+		write!(f, "{}", s)
 	}
 }
 
-fn decode_cb_opcode(opcode: u8) -> Instruction {
+fn decode_opcode(opcode: u8) -> ExInstruction {
 	match opcode {
-		0x7c => Instruction::Bit(Reg8::H, 7),
-		_ => Instruction::Unimplemented
+		0x00 => ExInstruction::Nop,
+		0xE2 => ExInstruction::Load8(Reg8::MemC, Reg8::A),
+		0x47 => ExInstruction::Load8(Reg8::B, Reg8::A),
+		0x77 => ExInstruction::Load8(Reg8::MemHL, Reg8::A),
+		0xE0 => ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A),
+		0x0E => ExInstruction::Load8Imm(Reg8::C, 0u8),
+		0x3E => ExInstruction::Load8Imm(Reg8::A, 0u8),
+		0x11 => ExInstruction::Load16Imm(Reg16::DE, 0u16),
+		0x21 => ExInstruction::Load16Imm(Reg16::HL, 0u16),
+		0x31 => ExInstruction::Load16Imm(Reg16::SP, 0u16),
+		0x20 => ExInstruction::JrC(0i8, Condition::NZ),
+		0x32 => ExInstruction::LoadHLPredec,
+		0xAF => ExInstruction::Xor(Reg8::A),
+		0x0C => ExInstruction::Increment(Reg8::C),
+		0xCB => ExInstruction::PrefixCB,
+		_ => ExInstruction::Unimplemented
+	}
+}
+
+fn decode_cb_opcode(opcode: u8) -> ExInstruction {
+	match opcode {
+		0x7c => ExInstruction::Bit(Reg8::H, 7),
+		_ => ExInstruction::Unimplemented
 	}
 }
 
 // Returns an instruction along with the length of it, in order to update the PC afterwards
-pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instruction, u16) {
+pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction {
 	let opcode = interconnect.read_byte(pc);
-	let mut inst_length: u16 = 1;
+	let mut bytes: Vec<u8> = Vec::new();
+	bytes.push(opcode);
+
 	let decoded = decode_opcode(opcode);
 
 	let inst = match decoded {
-		Instruction::PrefixCB => {
-			inst_length += 1;
-			get_next_cb_instruction(interconnect, pc)
+		ExInstruction::PrefixCB => {
+			let second_byte = interconnect.read_byte(pc+1);
+			bytes.push(second_byte);
+			decode_cb_opcode(second_byte)
 		},
 
-		Instruction::JrC(_, c) => {
-			inst_length += 1;
-			let jump = interconnect.read_byte(pc+1) as i8;
-			Instruction::JrC(jump, c)
+		ExInstruction::JrC(_, c) => {
+			let second_byte = interconnect.read_byte(pc+1);
+			bytes.push(second_byte);
+			let jump = second_byte as i8;
+			ExInstruction::JrC(jump, c)
 		},
 
-		Instruction::Load8Imm(r, _) => {
-			inst_length += 1;
-			let v = interconnect.read_byte(pc+1);
-			Instruction::Load8Imm(r, v)
-		},
-
-		Instruction::Load16Imm(r, _) => {
-			inst_length += 2;
+		ExInstruction::Load8(dst, Reg8::Mem(_)) => {
 			let lsb = interconnect.read_byte(pc+1);
 			let msb = interconnect.read_byte(pc+2);
+			bytes.push(lsb);
+			bytes.push(msb);
+
 			let b: u16 = ((msb as u16) << 8) + (lsb as u16);
-			Instruction::Load16Imm(r, b)
+			ExInstruction::Load8(dst, Reg8::Mem(b))
+		},
+
+		ExInstruction::Load8(dst, Reg8::MemH(_)) => {
+			let b = interconnect.read_byte(pc+1);
+			bytes.push(b);
+
+			ExInstruction::Load8(dst, Reg8::MemH(b))
+		}
+
+		ExInstruction::Load8(Reg8::MemH(_), src) => {
+			let b = interconnect.read_byte(pc+1);
+			bytes.push(b);
+
+			ExInstruction::Load8(Reg8::MemH(b), src)
+		}
+
+		ExInstruction::Load8Imm(r, _) => {
+			let v = interconnect.read_byte(pc+1);
+			bytes.push(v);
+			ExInstruction::Load8Imm(r, v)
+		},
+
+		ExInstruction::Load16Imm(r, _) => {
+			let lsb = interconnect.read_byte(pc+1);
+			let msb = interconnect.read_byte(pc+2);
+			bytes.push(lsb);
+			bytes.push(msb);
+			let b: u16 = ((msb as u16) << 8) + (lsb as u16);
+			ExInstruction::Load16Imm(r, b)
 		},
 
 		_ => decoded
 	};
 
-	(inst, inst_length)
-}
-
-fn get_next_cb_instruction(interconnect: &Interconnect, pc: u16) -> Instruction {
-	let cb_opcode = interconnect.read_byte(pc+1);
-	decode_cb_opcode(cb_opcode)
+	Instruction {
+		ex: inst,
+		bytes: bytes
+	}
 }
