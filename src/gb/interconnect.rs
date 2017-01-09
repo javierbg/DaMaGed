@@ -49,10 +49,13 @@ impl Interconnect {
 		let real_addr = mem_map::map_addr(addr);
 
 		match real_addr {
+			Addr::Bank0(_) => self.rom.write_rom(real_addr, val),
+			Addr::BankN(_) => self.rom.write_rom(real_addr, val),
 			Addr::VRam(a) => {
 				println!("Writing {:02X} into VRAM address {:04X}", val, addr);
 				self.vram[a as usize] = val;
 			},
+			Addr::HardwareIO(_) => self.io.write_byte(real_addr, val),
 
 			_ => {
 				panic!("Writing to {:04X} not implemented", addr);

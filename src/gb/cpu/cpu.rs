@@ -55,21 +55,31 @@ impl Cpu {
             println!("{:04X} : {:?}", self.pc, instruction);
 
             // increment pc with instruction length
-            self.pc += inst_len;
+            self.pc = self.pc.wrapping_add(inst_len);
 
             // execute instruction
             match instruction {
                 Instruction::Nop => {},
+
+                Instruction::Load8(dst, src) => {
+                    let val = self.read_8bit_register(itct, src);
+                    self.load_8bit_register(itct, dst, val);
+                }
+
+                Instruction::Load8Imm(r, v) => {
+                    self.load_8bit_register(itct, r, v);
+                },
+
                 Instruction::Load16Imm(r, v) => {
                     self.load_16bit_register(r, v);
                 },
 
                 Instruction::LoadHLPredec => {
                     let a: u8 = self.a;
-                    let hl = self.read_16bit_register(instruction::Reg16::HL) - 1u16;
+                    let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_sub(1u16);
                     self.load_16bit_register(instruction::Reg16::HL, hl);
                     self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
-                }
+                },
 
                 Instruction::Xor(r) => {
                     let newval = self.a ^ self.read_8bit_register(itct, r);
@@ -77,12 +87,29 @@ impl Cpu {
                     self.a = newval;
                 },
 
+                Instruction::Increment(r) => {
+                    let val = self.read_8bit_register(itct, r);
+                    let newval = val.wrapping_add(1u8);
+                    self.load_8bit_register(itct, r, newval);
+
+                    // Zero flag
+                    new_flags = if newval == 0  {new_flags | 0x80}  else {new_flags & 0x70};
+                    // Half carry flag (is there a better way?)
+                    new_flags = if (((val & 0x0F) + 1u8) & 0xF0) != 0 {new_flags | 0x20} else {new_flags & 0xD0};
+                },
+
                 Instruction::Bit(r, b) => {
                     let v = self.read_8bit_register(itct, r);
                     let bit = (v >> b) & 0x01;
-                    let old_flags = new_flags;
-                    new_flags = if bit == 0x00 { old_flags & (0xB0) } else { old_flags & (0x30) };
-                }
+                    let old_flags = new_flags & 0x10; // Set ZNH to 0
+                    new_flags = if bit == 0x00 { old_flags | (0xA0) } else { old_flags | (0x20) };
+                },
+
+                Instruction::JrC(j, c) => {
+                    if self.cond(c) {
+                        self.pc = self.pc.wrapping_add(j as u16);
+                    }
+                },
 
                 Instruction::Unimplemented => {
                     panic!("Uninmplemented instruction");
@@ -113,6 +140,8 @@ impl Cpu {
             instruction::Reg8::MemHL => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::HL)),
             instruction::Reg8::MemSP => interconnect.read_byte(self.sp),
 
+            instruction::Reg8::MemC  => interconnect.read_byte(0xFF00u16 + (self.c as u16)),
+
             instruction::Reg8::Mem(addr) => interconnect.read_byte(addr),
         }
     }
@@ -131,6 +160,8 @@ impl Cpu {
             instruction::Reg8::MemDE => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::DE), val),
             instruction::Reg8::MemHL => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::HL), val),
             instruction::Reg8::MemSP => interconnect.write_byte(self.sp, val),
+
+            instruction::Reg8::MemC  => interconnect.write_byte(0xFF00u16 + (self.c as u16), val),
 
             instruction::Reg8::Mem(addr) => interconnect.write_byte(addr, val),
         };
@@ -166,5 +197,15 @@ impl Cpu {
                 self.sp = val;
             },
         };
+    }
+
+    // Determines if a specific condition is true
+    fn cond(&self, condition: instruction::Condition) -> bool {
+        match condition {
+            instruction::Condition::C  => (self.f & 0x10) != 0x00,
+            instruction::Condition::NC => (self.f & 0x10) == 0x00,
+            instruction::Condition::Z  => (self.f & 0x80) != 0x00,
+            instruction::Condition::NZ => (self.f & 0x80) == 0x00,
+        }
     }
 }

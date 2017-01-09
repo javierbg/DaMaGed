@@ -74,8 +74,8 @@ pub enum Instruction {
 	// Jump instructions
 	Jp(u16), // Jump execution to address
 	JpC(u16, Condition), // Jump only if condition is met
-	Jr(u8), // Relative jump
-	JrC(u8, Condition), // Relative jump only if condition is met
+	Jr(i8), // Relative jump
+	JrC(i8, Condition), // Relative jump only if condition is met
 	JpHL, // Jump to the contents of HL (PC <- HL)
 
 	Stop, // Halt CPU
@@ -92,11 +92,13 @@ pub enum Instruction {
 }
 
 // 8-bit register
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub enum Reg8 {
 	A, B, C, D, E, H, L,
 	//Memory cell pointed by...
 	MemBC, MemDE, MemHL, MemSP,
+	//Memory cell pointed by 0xFF00 + ...
+	MemC,
 	//Memory cell pointed by literal value...
 	Mem(u16)
 }
@@ -116,10 +118,15 @@ pub enum Condition {
 fn decode_opcode(opcode: u8) -> Instruction {
 	match opcode {
 		0x00 => Instruction::Nop,
+		0xE2 => Instruction::Load8(Reg8::MemC, Reg8::A),
+		0x0E => Instruction::Load8Imm(Reg8::C, 0u8),
+		0x3E => Instruction::Load8Imm(Reg8::A, 0u8),
+		0x20 => Instruction::JrC(0i8, Condition::NZ),
 		0x21 => Instruction::Load16Imm(Reg16::HL, 0u16),
 		0x31 => Instruction::Load16Imm(Reg16::SP, 0u16),
 		0x32 => Instruction::LoadHLPredec,
 		0xAF => Instruction::Xor(Reg8::A),
+		0x0C => Instruction::Increment(Reg8::C),
 		0xCB => Instruction::PrefixCB,
 		_ => Instruction::Unimplemented
 	}
@@ -142,6 +149,18 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> (Instructio
 		Instruction::PrefixCB => {
 			inst_length += 1;
 			get_next_cb_instruction(interconnect, pc)
+		},
+
+		Instruction::JrC(_, c) => {
+			inst_length += 1;
+			let jump = interconnect.read_byte(pc+1) as i8;
+			Instruction::JrC(jump, c)
+		},
+
+		Instruction::Load8Imm(r, _) => {
+			inst_length += 1;
+			let v = interconnect.read_byte(pc+1);
+			Instruction::Load8Imm(r, v)
 		},
 
 		Instruction::Load16Imm(r, _) => {

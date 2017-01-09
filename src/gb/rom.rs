@@ -55,7 +55,9 @@ impl ROM {
 			}
 
 			_ => {
-				panic!("Trying to write to ROM!");
+				// Should it panic? Boot ROM actually tries to write once to rom before finishing
+				// zeroing the vram
+				//panic!("Trying to write to ROM!");
 			}
 		}
 	}
