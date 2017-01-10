@@ -22,6 +22,14 @@ impl Instruction {
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::Xor(r) => format!("xor {}", r),
 			&ExInstruction::Increment(r) => format!("inc {}",r),
+			&ExInstruction::Call(a) => format!("call 0{:04x}h", a),
+			&ExInstruction::Push(r) => format!("push {}", r),
+			&ExInstruction::Bit(r,b) => format!("bit {},{}",b,r),
+			&ExInstruction::Rotate(reg,dir,carry) => {
+				format!("r{}{} {}", if dir {"l"} else {"r"},
+			                        if carry {"c"} else {""},
+							        reg)
+			}
 
 			_ => format!("{:?}", self.ex)
 		}
@@ -104,13 +112,22 @@ pub enum ExInstruction {
 	Rla,  // Rotate Left A
 	Rrca, Rra, // More of the same
 
-	Rlc(Reg8), // Rotate Left an 8-bit register
+	/*Rlc(Reg8), // Rotate Left an 8-bit register
 	Rl(Reg8),
 
 	Rrc(Reg8), Rr(Reg8),
 
 	Sla(Reg8), Sra(Reg8), // Arithmetic shift
-	Srl(Reg8), // Logical shift (only right bc SLL would do the same as SLA)
+	Srl(Reg8), // Logical shift (only right because SLL would do the same as SLA)*/
+
+	// Union of all of the above. Params, in order:
+	// register, direction (true=left), carry
+	Rotate(Reg8, bool, bool),
+
+	// register, direciton (true=left), type (true=arithmetic)
+	Shift(Reg8, bool, bool),
+
+	Swap(Reg8),
 
 	Bit(Reg8, u8), // Test the n-th bit of a register
 	Set(Reg8, u8), // Set the n-th bit of a register
@@ -196,28 +213,79 @@ impl fmt::Display for Condition {
 fn decode_opcode(opcode: u8) -> ExInstruction {
 	match opcode {
 		0x00 => ExInstruction::Nop,
+
 		0xE2 => ExInstruction::Load8(Reg8::MemC, Reg8::A),
 		0x47 => ExInstruction::Load8(Reg8::B, Reg8::A),
+		0x4F => ExInstruction::Load8(Reg8::C, Reg8::A),
 		0x77 => ExInstruction::Load8(Reg8::MemHL, Reg8::A),
 		0xE0 => ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A),
+		0x1A => ExInstruction::Load8(Reg8::A, Reg8::MemDE),
+
+		0x06 => ExInstruction::Load8Imm(Reg8::B, 0u8),
 		0x0E => ExInstruction::Load8Imm(Reg8::C, 0u8),
 		0x3E => ExInstruction::Load8Imm(Reg8::A, 0u8),
+
 		0x11 => ExInstruction::Load16Imm(Reg16::DE, 0u16),
 		0x21 => ExInstruction::Load16Imm(Reg16::HL, 0u16),
 		0x31 => ExInstruction::Load16Imm(Reg16::SP, 0u16),
+
 		0x20 => ExInstruction::JrC(0i8, Condition::NZ),
 		0x32 => ExInstruction::LoadHLPredec,
 		0xAF => ExInstruction::Xor(Reg8::A),
 		0x0C => ExInstruction::Increment(Reg8::C),
+
+		0xC5 => ExInstruction::Push(Reg16::BC),
+
+		0xCD => ExInstruction::Call(0u16),
+
 		0xCB => ExInstruction::PrefixCB,
 		_ => ExInstruction::Unimplemented
 	}
 }
 
+fn decode_cb_op_reg(opcode: u8) -> Reg8 {
+	match opcode & 0x07 {
+		0b000 => Reg8::B,
+		0b001 => Reg8::C,
+		0b010 => Reg8::D,
+		0b011 => Reg8::E,
+		0b100 => Reg8::H,
+		0b101 => Reg8::L,
+		0b110 => Reg8::MemHL,
+		0b111 => Reg8::A,
+		_ => Reg8::A //Never should happen because of the AND operation, but pattern matching is strict
+	}
+}
+
+fn decode_cb_op_bit(opcode: u8) -> u8 {
+	(opcode & 0b00111000) >> 3
+}
+
 fn decode_cb_opcode(opcode: u8) -> ExInstruction {
-	match opcode {
-		0x7c => ExInstruction::Bit(Reg8::H, 7),
-		_ => ExInstruction::Unimplemented
+	let reg = decode_cb_op_reg(opcode);
+
+	let first_two_bits = opcode & 0xC0;
+	if first_two_bits != 0 {
+		let bit = decode_cb_op_bit(opcode);
+		match first_two_bits {
+			0x40 => ExInstruction::Bit(reg, bit),
+			0x80 => ExInstruction::Res(reg, bit),
+			0xC0 => ExInstruction::Set(reg, bit),
+			_ => ExInstruction::Unimplemented // Should never happen
+		}
+	}
+	else {
+		match opcode & 0x38 {
+			0x00 => ExInstruction::Rotate(reg,true,true),
+			0x08 => ExInstruction::Rotate(reg,false,true),
+			0x10 => ExInstruction::Rotate(reg,true,false),
+			0x18 => ExInstruction::Rotate(reg,false,false),
+			0x20 => ExInstruction::Shift(reg,true,true),
+			0x28 => ExInstruction::Shift(reg,false,true),
+			0x30 => ExInstruction::Swap(reg),
+			0x38 => ExInstruction::Shift(reg,false,false),
+			_ => ExInstruction::Unimplemented // Should never happen
+		}
 	}
 }
 
@@ -244,12 +312,11 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 		},
 
 		ExInstruction::Load8(dst, Reg8::Mem(_)) => {
-			let lsb = interconnect.read_byte(pc+1);
-			let msb = interconnect.read_byte(pc+2);
+			let (lsb, msb) = interconnect.read_2bytes(pc+1);
 			bytes.push(lsb);
 			bytes.push(msb);
 
-			let b: u16 = ((msb as u16) << 8) + (lsb as u16);
+			let b: u16 = bytes_to_u16(lsb, msb);
 			ExInstruction::Load8(dst, Reg8::Mem(b))
 		},
 
@@ -274,13 +341,20 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 		},
 
 		ExInstruction::Load16Imm(r, _) => {
-			let lsb = interconnect.read_byte(pc+1);
-			let msb = interconnect.read_byte(pc+2);
+			let (lsb, msb) = interconnect.read_2bytes(pc+1);
 			bytes.push(lsb);
 			bytes.push(msb);
-			let b: u16 = ((msb as u16) << 8) + (lsb as u16);
+			let b: u16 = bytes_to_u16(lsb, msb);
 			ExInstruction::Load16Imm(r, b)
 		},
+
+		ExInstruction::Call(_) => {
+			let (lsb, msb) = interconnect.read_2bytes(pc+1);
+			bytes.push(lsb);
+			bytes.push(msb);
+			let b: u16 = bytes_to_u16(lsb, msb);
+			ExInstruction::Call(b)
+		}
 
 		_ => decoded
 	};
@@ -289,4 +363,8 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 		ex: inst,
 		bytes: bytes
 	}
+}
+
+fn bytes_to_u16(lsb: u8, msb: u8) -> u16 {
+	((msb as u16) << 8) + (lsb as u16)
 }

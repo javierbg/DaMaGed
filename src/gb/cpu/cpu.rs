@@ -111,6 +111,24 @@ impl Cpu {
                     }
                 },
 
+                ExInstruction::Call(a) => {
+                    println!("{:?}", self);
+                    let hb = (self.pc >> 8) as u8;
+                    let lb = self.pc as u8;
+
+                    let ha = self.sp.wrapping_sub(1);
+                    let la = self.sp.wrapping_sub(2);
+                    itct.write_byte(ha, hb);
+                    itct.write_byte(la, lb);
+
+                    self.sp = la;
+                    self.pc = a;
+                }
+
+                ExInstruction::Push(r) => {
+                    self.push(itct, r);
+                }
+
                 ExInstruction::Unimplemented => {
                     panic!("Uninmplemented instruction");
                 },
@@ -209,5 +227,34 @@ impl Cpu {
             instruction::Condition::Z  => (self.f & 0x80) != 0x00,
             instruction::Condition::NZ => (self.f & 0x80) == 0x00,
         }
+    }
+
+    // Push a 16 bit value to the stack
+    fn push(&mut self, itct: &mut Interconnect, reg: instruction::Reg16) {
+        let ha = self.sp.wrapping_sub(1);
+        let la = self.sp.wrapping_sub(2);
+
+        match reg {
+            instruction::Reg16::BC => {
+                itct.write_byte(ha, self.b);
+                itct.write_byte(la, self.c);
+            },
+            instruction::Reg16::DE => {
+                itct.write_byte(ha, self.d);
+                itct.write_byte(la, self.e);
+            },
+            instruction::Reg16::HL => {
+                itct.write_byte(ha, self.h);
+                itct.write_byte(la, self.l);
+            },
+            instruction::Reg16::SP => {
+                let hb = (self.sp >> 8) as u8;
+                let lb = self.sp as u8;
+                itct.write_byte(ha, hb);
+                itct.write_byte(la, lb);
+            },
+        }
+
+        self.sp = la;
     }
 }

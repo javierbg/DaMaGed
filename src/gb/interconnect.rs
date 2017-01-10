@@ -56,11 +56,21 @@ impl Interconnect {
 				self.vram[a as usize] = val;
 			},
 			Addr::HardwareIO(_) => self.io.write_byte(real_addr, val),
+			Addr::HighRam(a) => {
+				println!("Writing {:02X} into High Ram address {:04X}", val, addr);
+				self.high_ram[a as usize] = val;
+			},
 
 			_ => {
 				panic!("Writing to {:04X} not implemented", addr);
 			}
 		};
+	}
+
+	pub fn read_2bytes(&self, addr: u16) -> (u8, u8) {
+		let lsb = self.read_byte(addr);
+		let msb = self.read_byte(addr+1);
+		(lsb, msb)
 	}
 }
 
