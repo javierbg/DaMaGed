@@ -16,6 +16,10 @@ impl GB {
 		}
 	}
 
+	pub fn step(&mut self) {
+		self.cpu.step(&mut self.interconnect);
+	}
+
 	pub fn run(&mut self) {
 		self.cpu.run(&mut self.interconnect);
 	}

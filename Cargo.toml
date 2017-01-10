@@ -5,3 +5,5 @@ authors = ["javierbg <javierbg1995@gmail.com>"]
 license = "GPL-3.0"
 
 [dependencies]
+
+argparse = "*"
