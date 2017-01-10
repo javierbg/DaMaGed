@@ -21,14 +21,21 @@ impl Instruction {
 			&ExInstruction::JrC(jr, cond) => format!("jr {},${}",cond,jr),
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::Xor(r) => format!("xor {}", r),
-			&ExInstruction::Increment(r) => format!("inc {}",r),
+			&ExInstruction::Increment8(r) => format!("inc {}",r),
+			&ExInstruction::Decrement8(r) => format!("dec {}",r),
 			&ExInstruction::Call(a) => format!("call 0{:04x}h", a),
 			&ExInstruction::Push(r) => format!("push {}", r),
+			&ExInstruction::Pop(r)  => format!("pop {}", r),
 			&ExInstruction::Bit(r,b) => format!("bit {},{}",b,r),
 			&ExInstruction::Rotate(reg,dir,carry) => {
-				format!("r{}{} {}", if dir {"l"} else {"r"},
-			                        if carry {"c"} else {""},
-							        reg)
+				if self.bytes[0] == 0xCB { // CB prefixed op
+					format!("r{}{} {}", if dir {"l"} else {"r"},
+				                        if carry {"c"} else {""},
+								        reg)
+				} else { // Rotate on A register
+					format!("r{}{}a", if dir {"l"} else {"r"},
+				                      if carry {"c"} else {""})
+				}
 			}
 
 			_ => format!("{:?}", self.ex)
@@ -90,7 +97,7 @@ pub enum ExInstruction {
 
 	Compare(Reg8), CompareImm(u8),
 
-	Increment(Reg8), Decrement(Reg8),
+	Increment8(Reg8), Decrement8(Reg8),
 
 	Daa, // Decimal Adjust A (I think?). In short, adjust so number is BCD
 	Cpl, // Invert A (one's complement)
@@ -108,22 +115,12 @@ pub enum ExInstruction {
 	Dec16(Reg16),
 
 	// Rotate and Shift
-	Rlca, // Rotate Left A and Carry
-	Rla,  // Rotate Left A
-	Rrca, Rra, // More of the same
 
-	/*Rlc(Reg8), // Rotate Left an 8-bit register
-	Rl(Reg8),
-
-	Rrc(Reg8), Rr(Reg8),
-
-	Sla(Reg8), Sra(Reg8), // Arithmetic shift
-	Srl(Reg8), // Logical shift (only right because SLL would do the same as SLA)*/
-
-	// Union of all of the above. Params, in order:
+	// This encapsulates all rotations. Params, in order:
 	// register, direction (true=left), carry
 	Rotate(Reg8, bool, bool),
 
+	// Same with shifts
 	// register, direciton (true=left), type (true=arithmetic)
 	Shift(Reg8, bool, bool),
 
@@ -232,9 +229,13 @@ fn decode_opcode(opcode: u8) -> ExInstruction {
 		0x20 => ExInstruction::JrC(0i8, Condition::NZ),
 		0x32 => ExInstruction::LoadHLPredec,
 		0xAF => ExInstruction::Xor(Reg8::A),
-		0x0C => ExInstruction::Increment(Reg8::C),
+		0x0C => ExInstruction::Increment8(Reg8::C),
+		0x05 => ExInstruction::Decrement8(Reg8::B),
+
+		0x17 => ExInstruction::Rotate(Reg8::A, true, false),
 
 		0xC5 => ExInstruction::Push(Reg16::BC),
+		0xC1 => ExInstruction::Pop(Reg16::BC),
 
 		0xCD => ExInstruction::Call(0u16),
 
@@ -276,14 +277,14 @@ fn decode_cb_opcode(opcode: u8) -> ExInstruction {
 	}
 	else {
 		match opcode & 0x38 {
-			0x00 => ExInstruction::Rotate(reg,true,true),
-			0x08 => ExInstruction::Rotate(reg,false,true),
-			0x10 => ExInstruction::Rotate(reg,true,false),
-			0x18 => ExInstruction::Rotate(reg,false,false),
-			0x20 => ExInstruction::Shift(reg,true,true),
-			0x28 => ExInstruction::Shift(reg,false,true),
-			0x30 => ExInstruction::Swap(reg),
-			0x38 => ExInstruction::Shift(reg,false,false),
+			0x00 => ExInstruction::Rotate(reg,true,true),   // RLC
+			0x08 => ExInstruction::Rotate(reg,false,true),  // RRC
+			0x10 => ExInstruction::Rotate(reg,true,false),  // RL
+			0x18 => ExInstruction::Rotate(reg,false,false), // RR
+			0x20 => ExInstruction::Shift(reg,true,true),    // SLA
+			0x28 => ExInstruction::Shift(reg,false,true),   // SRA
+			0x30 => ExInstruction::Swap(reg),               // SwAP
+			0x38 => ExInstruction::Shift(reg,false,false),  // SLL
 			_ => ExInstruction::Unimplemented // Should never happen
 		}
 	}

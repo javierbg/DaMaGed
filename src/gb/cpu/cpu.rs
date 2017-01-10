@@ -59,173 +59,174 @@ impl Default for Cpu {
 
 #[allow(dead_code)]
 impl Cpu {
+
     pub fn run(&mut self, itct: &mut Interconnect) {
-
         loop {
-            //println!("{:?}", self);
-            // get instruction and instruction length from memory with pc
-            let instruction = instruction::get_next_instruction(itct, self.pc);
-            println!("{:04X} : {}", self.pc, instruction);
-
-            // increment pc with instruction length
-            self.pc = self.pc.wrapping_add(instruction.bytes.len() as u16);
-
-            // execute instruction
-            match instruction.ex {
-                ExInstruction::Nop => {},
-
-                ExInstruction::Load8(dst, src) => {
-                    let val = self.read_8bit_register(itct, src);
-                    self.load_8bit_register(itct, dst, val);
-                }
-
-                ExInstruction::Load8Imm(r, v) => {
-                    self.load_8bit_register(itct, r, v);
-                },
-
-                ExInstruction::Load16Imm(r, v) => {
-                    self.load_16bit_register(r, v);
-                },
-
-                ExInstruction::LoadHLPredec => {
-                    let a: u8 = self.a;
-                    let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_sub(1u16);
-                    self.load_16bit_register(instruction::Reg16::HL, hl);
-                    self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
-                },
-
-                ExInstruction::Xor(r) => {
-                    let newval = self.a ^ self.read_8bit_register(itct, r);
-                    self.f = if newval == 0x00 { 0x80 } else { 0x00 };
-                    self.a = newval;
-                },
-
-                ExInstruction::Increment(r) => {
-                    let val = self.read_8bit_register(itct, r);
-                    let newval = val.wrapping_add(1u8);
-                    self.load_8bit_register(itct, r, newval);
-
-                    // Zero flag
-                    if newval == 0  {
-                        self.set_flag(Flag::Z);
-                    }  else {
-                        self.reset_flag(Flag::Z);
-                    };
-                    // Half carry flag (is there a better way?)
-                    if (((val & 0x0F) + 1u8) & 0xF0) != 0 {
-                        self.set_flag(Flag::H);
-                    } else {
-                        self.reset_flag(Flag::H);
-                    };
-                },
-
-                ExInstruction::Rotate(reg, dir, carry) => {
-                    println!("{:?}", self);
-                    let old_val = self.read_8bit_register(itct, reg);
-                    let mut new_val;
-
-                    if carry { // with carry
-                        if dir { // left (rlc)
-                            if (old_val & 0x80) == 0 {
-                                self.reset_flag(Flag::C);
-                            } else {
-                                self.set_flag(Flag::C);
-                            };
-
-                            new_val = old_val.rotate_right(1);
-                        } else { // right (rrc)
-                            if (old_val & 0x01) == 0 {
-                                self.reset_flag(Flag::C);
-                            } else {
-                                self.set_flag(Flag::C);
-                            };
-
-                            new_val = old_val.rotate_left(1);
-                        }
-                    } else { // through carry
-                        let carry_set = self.get_flag(Flag::C);
-
-                        if dir { // left (rl)
-                            new_val = old_val << 1;
-                            if carry_set {
-                                new_val += 0x01;
-                            }
-
-                            if (old_val & 0x80) == 0 {
-                                self.reset_flag(Flag::C);
-                            } else {
-                                self.set_flag(Flag::C);
-                            };
-                        } else { // right (rr)
-                            new_val = old_val >> 1;
-                            if carry_set {
-                                new_val += 0x80;
-                            }
-
-                            if (old_val & 0x01) == 0 {
-                                self.reset_flag(Flag::C);
-                            } else {
-                                self.set_flag(Flag::C);
-                            };
-                        }
-                    }
-
-                    if new_val == 0 {
-                        self.set_flag(Flag::Z);
-                    } else {
-                        self.reset_flag(Flag::Z);
-                    }
-
-                    self.load_8bit_register(itct, reg, new_val);
-
-                    println!("{:?}", self);
-                },
-
-                ExInstruction::Bit(r, b) => {
-                    let v = self.read_8bit_register(itct, r);
-                    let bit = (v >> b) & 0x01;
-
-                    if bit == 0x00 {
-                        self.set_flag(Flag::Z);
-                    } else {
-                        self.reset_flag(Flag::Z);
-                    };
-                    self.reset_flag(Flag::N);
-                    self.set_flag(Flag::H);
-                },
-
-                ExInstruction::JrC(j, c) => {
-                    if self.cond(c) {
-                        self.pc = self.pc.wrapping_add(j as u16);
-                    }
-                },
-
-                ExInstruction::Call(a) => {
-                    let hb = (self.pc >> 8) as u8;
-                    let lb = self.pc as u8;
-
-                    let ha = self.sp.wrapping_sub(1);
-                    let la = self.sp.wrapping_sub(2);
-                    itct.write_byte(ha, hb);
-                    itct.write_byte(la, lb);
-
-                    self.sp = la;
-                    self.pc = a;
-                }
-
-                ExInstruction::Push(r) => {
-                    self.push(itct, r);
-                }
-
-                ExInstruction::Unimplemented => {
-                    panic!("Uninmplemented instruction");
-                },
-
-                _ => {
-                    panic!("Instruction `{:?}' not implemented yet", instruction.ex);
-                }
-            };
+            self.step(itct);
         }
+    }
+
+    pub fn step(&mut self, itct: &mut Interconnect) {
+        //println!("{:?}", self);
+        // get instruction and instruction length from memory with pc
+        let instruction = instruction::get_next_instruction(itct, self.pc);
+        println!("{:04X} : {}", self.pc, instruction);
+
+        // increment pc with instruction length
+        self.pc = self.pc.wrapping_add(instruction.bytes.len() as u16);
+
+        // execute instruction
+        match instruction.ex {
+            ExInstruction::Nop => {},
+
+            ExInstruction::Load8(dst, src) => {
+                let val = self.read_8bit_register(itct, src);
+                self.load_8bit_register(itct, dst, val);
+            }
+
+            ExInstruction::Load8Imm(r, v) => {
+                self.load_8bit_register(itct, r, v);
+            },
+
+            ExInstruction::Load16Imm(r, v) => {
+                self.load_16bit_register(r, v);
+            },
+
+            ExInstruction::LoadHLPredec => {
+                let a: u8 = self.a;
+                let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_sub(1u16);
+                self.load_16bit_register(instruction::Reg16::HL, hl);
+                self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
+            },
+
+            ExInstruction::Xor(r) => {
+                let newval = self.a ^ self.read_8bit_register(itct, r);
+                self.f = if newval == 0x00 { 0x80 } else { 0x00 };
+                self.a = newval;
+            },
+
+            ExInstruction::Increment8(r) => {
+                let val = self.read_8bit_register(itct, r);
+                let newval = self.add_with_carry(val, 1);
+                self.load_8bit_register(itct, r, newval);
+            },
+
+            ExInstruction::Decrement8(r) => {
+                let val = self.read_8bit_register(itct, r);
+                let newval = self.sub_with_carry(val, 1);
+                self.load_8bit_register(itct, r, newval);
+            },
+
+            ExInstruction::Rotate(reg, dir, carry) => {
+                let old_val = self.read_8bit_register(itct, reg);
+                let mut new_val;
+
+                if carry { // with carry
+                    if dir { // left (rlc)
+                        if (old_val & 0x80) == 0 {
+                            self.reset_flag(Flag::C);
+                        } else {
+                            self.set_flag(Flag::C);
+                        };
+
+                        new_val = old_val.rotate_right(1);
+                    } else { // right (rrc)
+                        if (old_val & 0x01) == 0 {
+                            self.reset_flag(Flag::C);
+                        } else {
+                            self.set_flag(Flag::C);
+                        };
+
+                        new_val = old_val.rotate_left(1);
+                    }
+                } else { // through carry
+                    let carry_set = self.get_flag(Flag::C);
+
+                    if dir { // left (rl)
+                        new_val = old_val << 1;
+                        if carry_set {
+                            new_val += 0x01;
+                        }
+
+                        if (old_val & 0x80) == 0 {
+                            self.reset_flag(Flag::C);
+                        } else {
+                            self.set_flag(Flag::C);
+                        };
+                    } else { // right (rr)
+                        new_val = old_val >> 1;
+                        if carry_set {
+                            new_val += 0x80;
+                        }
+
+                        if (old_val & 0x01) == 0 {
+                            self.reset_flag(Flag::C);
+                        } else {
+                            self.set_flag(Flag::C);
+                        };
+                    }
+                }
+
+                if new_val == 0 {
+                    self.set_flag(Flag::Z);
+                } else {
+                    self.reset_flag(Flag::Z);
+                }
+
+                self.load_8bit_register(itct, reg, new_val);
+            },
+
+            ExInstruction::Bit(r, b) => {
+                let v = self.read_8bit_register(itct, r);
+                let bit = (v >> b) & 0x01;
+
+                if bit == 0x00 {
+                    self.set_flag(Flag::Z);
+                } else {
+                    self.reset_flag(Flag::Z);
+                };
+                self.reset_flag(Flag::N);
+                self.set_flag(Flag::H);
+            },
+
+            ExInstruction::JrC(j, c) => {
+                if self.cond(c) {
+                    self.pc = self.pc.wrapping_add(j as u16);
+                }
+            },
+
+            ExInstruction::Call(a) => {
+                let hb = (self.pc >> 8) as u8;
+                let lb = self.pc as u8;
+
+                let ha = self.sp.wrapping_sub(1);
+                let la = self.sp.wrapping_sub(2);
+                itct.write_byte(ha, hb);
+                itct.write_byte(la, lb);
+
+                self.sp = la;
+                self.pc = a;
+            }
+
+            ExInstruction::Pop(r) => {
+                println!("{:?}", self);
+                self.pop(itct, r);
+                println!("{:?}", self);
+            },
+
+            ExInstruction::Push(r) => {
+                self.push(itct, r);
+            },
+
+            ExInstruction::Unimplemented => {
+                panic!("Uninmplemented instruction");
+            },
+
+            _ => {
+                panic!("Instruction `{:?}' not implemented yet", instruction.ex);
+            }
+        };
+
     }
 
     fn read_8bit_register(&self, interconnect: &Interconnect, reg: instruction::Reg8) -> u8 {
@@ -334,10 +335,10 @@ impl Cpu {
     // Determines if a specific condition is true
     fn cond(&self, condition: instruction::Condition) -> bool {
         match condition {
-            instruction::Condition::C  => (self.f & 0x10) != 0x00,
-            instruction::Condition::NC => (self.f & 0x10) == 0x00,
-            instruction::Condition::Z  => (self.f & 0x80) != 0x00,
-            instruction::Condition::NZ => (self.f & 0x80) == 0x00,
+            instruction::Condition::C  => (self.f & C_MASK) != 0x00,
+            instruction::Condition::NC => (self.f & C_MASK) == 0x00,
+            instruction::Condition::Z  => (self.f & Z_MASK) != 0x00,
+            instruction::Condition::NZ => (self.f & Z_MASK) == 0x00,
         }
     }
 
@@ -368,5 +369,73 @@ impl Cpu {
         }
 
         self.sp = la;
+    }
+
+    // Pop a 16 bit value from the stack
+    fn pop(&mut self, itct: &mut Interconnect, reg: instruction::Reg16) {
+        let lo_addr = self.sp;
+        let hi_addr = self.sp.wrapping_add(1);
+
+        let lo_byte = itct.read_byte(lo_addr);
+        let hi_byte = itct.read_byte(hi_addr);
+
+        match reg {
+            instruction::Reg16::BC => {
+                self.b = hi_byte;
+                self.c = lo_byte;
+            },
+            instruction::Reg16::DE => {
+                self.d = hi_byte;
+                self.e = lo_byte;
+            },
+            instruction::Reg16::HL => {
+                self.h = hi_byte;
+                self.l = lo_byte;
+            },
+            instruction::Reg16::SP => {
+                // Should never happen
+            },
+        }
+
+        self.sp = self.sp.wrapping_add(2);
+    }
+
+    // Adds two 8-bit numbers and marks the flags acordingly
+    fn add_with_carry(&mut self, a: u8, b: u8) -> u8 {
+        let (result,c_flag) = a.overflowing_add(b);
+        let h_flag = (((a & 0x0F) + (b & 0x0F)) & 0xF0) != 0;
+        let z_flag = result == 0;
+
+        self.reset_flag(Flag::N);
+
+        if c_flag {
+            self.set_flag(Flag::C);
+        } else {
+            self.reset_flag(Flag::C);
+        }
+
+        if h_flag {
+            self.set_flag(Flag::H);
+        } else {
+            self.reset_flag(Flag::H);
+        }
+
+        if z_flag {
+            self.set_flag(Flag::Z);
+        } else {
+            self.reset_flag(Flag::Z);
+        }
+
+        result
+    }
+
+    // Subracts two 8-bit numbers (a-b) and marks the flags acordingly
+    // TODO: Check if this is correct
+    fn sub_with_carry(&mut self, a: u8, b: u8) -> u8 {
+        // Two's complement
+        let negative_b = (!b).wrapping_add(1);
+        self.set_flag(Flag::N);
+
+        self.add_with_carry(a, negative_b)
     }
 }
