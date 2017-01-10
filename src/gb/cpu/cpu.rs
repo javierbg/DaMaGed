@@ -21,6 +21,20 @@ pub struct Cpu {
     pc: u16,
 }
 
+// F register masks
+const Z_MASK: u8 = 0x80;
+const N_MASK: u8 = 0x40;
+const H_MASK: u8 = 0x20;
+const C_MASK: u8 = 0x10;
+const Z_MASK_NEG: u8 = !Z_MASK;
+const N_MASK_NEG: u8 = !N_MASK;
+const H_MASK_NEG: u8 = !H_MASK;
+const C_MASK_NEG: u8 = !C_MASK;
+
+enum Flag {
+    Z, N, H, C
+}
+
 const INIT_ADDRESS: u16 = 0x0000;
 
 impl Default for Cpu {
@@ -46,7 +60,6 @@ impl Default for Cpu {
 #[allow(dead_code)]
 impl Cpu {
     pub fn run(&mut self, itct: &mut Interconnect) {
-        let mut new_flags: u8 = self.f;
 
         loop {
             //println!("{:?}", self);
@@ -83,7 +96,7 @@ impl Cpu {
 
                 ExInstruction::Xor(r) => {
                     let newval = self.a ^ self.read_8bit_register(itct, r);
-                    new_flags = if newval == 0x00 { 0x80 } else { 0x00 };
+                    self.f = if newval == 0x00 { 0x80 } else { 0x00 };
                     self.a = newval;
                 },
 
@@ -93,16 +106,92 @@ impl Cpu {
                     self.load_8bit_register(itct, r, newval);
 
                     // Zero flag
-                    new_flags = if newval == 0  {new_flags | 0x80}  else {new_flags & 0x70};
+                    if newval == 0  {
+                        self.set_flag(Flag::Z);
+                    }  else {
+                        self.reset_flag(Flag::Z);
+                    };
                     // Half carry flag (is there a better way?)
-                    new_flags = if (((val & 0x0F) + 1u8) & 0xF0) != 0 {new_flags | 0x20} else {new_flags & 0xD0};
+                    if (((val & 0x0F) + 1u8) & 0xF0) != 0 {
+                        self.set_flag(Flag::H);
+                    } else {
+                        self.reset_flag(Flag::H);
+                    };
+                },
+
+                ExInstruction::Rotate(reg, dir, carry) => {
+                    println!("{:?}", self);
+                    let old_val = self.read_8bit_register(itct, reg);
+                    let mut new_val;
+
+                    if carry { // with carry
+                        if dir { // left (rlc)
+                            if (old_val & 0x80) == 0 {
+                                self.reset_flag(Flag::C);
+                            } else {
+                                self.set_flag(Flag::C);
+                            };
+
+                            new_val = old_val.rotate_right(1);
+                        } else { // right (rrc)
+                            if (old_val & 0x01) == 0 {
+                                self.reset_flag(Flag::C);
+                            } else {
+                                self.set_flag(Flag::C);
+                            };
+
+                            new_val = old_val.rotate_left(1);
+                        }
+                    } else { // through carry
+                        let carry_set = self.get_flag(Flag::C);
+
+                        if dir { // left (rl)
+                            new_val = old_val << 1;
+                            if carry_set {
+                                new_val += 0x01;
+                            }
+
+                            if (old_val & 0x80) == 0 {
+                                self.reset_flag(Flag::C);
+                            } else {
+                                self.set_flag(Flag::C);
+                            };
+                        } else { // right (rr)
+                            new_val = old_val >> 1;
+                            if carry_set {
+                                new_val += 0x80;
+                            }
+
+                            if (old_val & 0x01) == 0 {
+                                self.reset_flag(Flag::C);
+                            } else {
+                                self.set_flag(Flag::C);
+                            };
+                        }
+                    }
+
+                    if new_val == 0 {
+                        self.set_flag(Flag::Z);
+                    } else {
+                        self.reset_flag(Flag::Z);
+                    }
+
+                    self.load_8bit_register(itct, reg, new_val);
+
+                    println!("{:?}", self);
                 },
 
                 ExInstruction::Bit(r, b) => {
                     let v = self.read_8bit_register(itct, r);
                     let bit = (v >> b) & 0x01;
-                    let old_flags = new_flags & 0x10; // Set ZNH to 0
-                    new_flags = if bit == 0x00 { old_flags | (0xA0) } else { old_flags | (0x20) };
+
+                    if bit == 0x00 {
+                        self.set_flag(Flag::Z);
+                    } else {
+                        self.reset_flag(Flag::Z);
+                    };
+                    self.reset_flag(Flag::N);
+                    self.set_flag(Flag::H);
                 },
 
                 ExInstruction::JrC(j, c) => {
@@ -112,7 +201,6 @@ impl Cpu {
                 },
 
                 ExInstruction::Call(a) => {
-                    println!("{:?}", self);
                     let hb = (self.pc >> 8) as u8;
                     let lb = self.pc as u8;
 
@@ -137,9 +225,6 @@ impl Cpu {
                     panic!("Instruction `{:?}' not implemented yet", instruction.ex);
                 }
             };
-
-            //Update flags
-            self.f = new_flags;
         }
     }
 
@@ -217,6 +302,33 @@ impl Cpu {
                 self.sp = val;
             },
         };
+    }
+
+    fn set_flag(&mut self, flg: Flag) {
+        match flg {
+            Flag::Z => self.f = self.f | Z_MASK,
+            Flag::N => self.f = self.f | N_MASK,
+            Flag::H => self.f = self.f | H_MASK,
+            Flag::C => self.f = self.f | C_MASK,
+        }
+    }
+
+    fn reset_flag(&mut self, flg: Flag) {
+        match flg {
+            Flag::Z => self.f = self.f & Z_MASK_NEG,
+            Flag::N => self.f = self.f & N_MASK_NEG,
+            Flag::H => self.f = self.f & H_MASK_NEG,
+            Flag::C => self.f = self.f & C_MASK_NEG,
+        }
+    }
+
+    fn get_flag(&self, flg: Flag) -> bool {
+        match flg {
+            Flag::Z => self.f & Z_MASK != 0,
+            Flag::N => self.f & N_MASK != 0,
+            Flag::H => self.f & H_MASK != 0,
+            Flag::C => self.f & C_MASK != 0,
+        }
     }
 
     // Determines if a specific condition is true
