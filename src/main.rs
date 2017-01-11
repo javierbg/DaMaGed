@@ -3,8 +3,6 @@ extern crate argparse;
 mod gb;
 
 use std::fs;
-use std::io;
-use std::io::BufRead;
 use std::io::Read;
 use std::path::Path;
 
@@ -40,15 +38,7 @@ fn main() {
 
     let mut gb = gb::GB::new(boot_rom_buffer, cart_rom_buffer);
 
-    if !debug {
-        gb.run();
-    }
-    else {
-        let stdin = io::stdin();
-        for _ in stdin.lock().lines() {
-            gb.step();
-        }
-    }
+    gb.run(debug);
 }
 
 fn read_rom<P: AsRef<Path>>(path: P) -> Box<[u8]> {

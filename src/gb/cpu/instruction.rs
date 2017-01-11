@@ -154,7 +154,7 @@ pub enum ExInstruction {
 // 8-bit register
 #[derive(Debug, Copy, Clone)]
 pub enum Reg8 {
-	A, B, C, D, E, H, L,
+	A, B, C, D, E, F, H, L,
 	//Memory cell pointed by...
 	MemBC, MemDE, MemHL, MemSP,
 	//Memory cell pointed by 0xFF00 + ...
@@ -184,7 +184,7 @@ impl fmt::Display for Reg8 {
 // 16-bit register
 #[derive(Debug, Copy, Clone)]
 pub enum Reg16 {
-	BC, DE, HL, SP
+	BC, DE, HL, SP, PC
 }
 
 impl fmt::Display for Reg16 {
@@ -192,6 +192,11 @@ impl fmt::Display for Reg16 {
 		let s: String = format!("{:?}", * self).to_lowercase();
 		write!(f, "{}", s)
 	}
+}
+
+pub enum Register {
+	Register8(Reg8),
+	Register16(Reg16),
 }
 
 // Jump conditions
@@ -288,6 +293,21 @@ fn decode_cb_opcode(opcode: u8) -> ExInstruction {
 			_ => ExInstruction::Unimplemented // Should never happen
 		}
 	}
+}
+
+// Retrieves the n next instructions
+pub fn get_next_instructions(itct: &Interconnect, addr: u16, n_inst: u16) -> Vec<(u16, Instruction)> {
+	let mut insts = Vec::<(u16, Instruction)>::new();
+	let mut current_addr = addr;
+
+	for _ in 0..n_inst {
+		let next_inst = get_next_instruction(itct, current_addr);
+		let next_addr = current_addr + next_inst.bytes.len() as u16;
+		insts.push((current_addr, next_inst));
+		current_addr = next_addr;
+	}
+
+	insts
 }
 
 // Returns an instruction along with the length of it, in order to update the PC afterwards

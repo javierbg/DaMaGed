@@ -18,7 +18,7 @@ pub struct Cpu {
     l: u8,
 
     sp: u16,
-    pc: u16,
+    pub pc: u16,
 }
 
 // F register masks
@@ -43,10 +43,13 @@ impl Default for Cpu {
             // 1 byte 0xdeadbeef ?
             a: 0x42,
             f: 0x42,
+
             b: 0x42,
             c: 0x42,
+
             d: 0x42,
             e: 0x42,
+
             h: 0x42,
             l: 0x42,
 
@@ -66,11 +69,9 @@ impl Cpu {
         }
     }
 
-    pub fn step(&mut self, itct: &mut Interconnect) {
-        //println!("{:?}", self);
+    pub fn step(&mut self, itct: &mut Interconnect) -> instruction::Instruction{
         // get instruction and instruction length from memory with pc
         let instruction = instruction::get_next_instruction(itct, self.pc);
-        println!("{:04X} : {}", self.pc, instruction);
 
         // increment pc with instruction length
         self.pc = self.pc.wrapping_add(instruction.bytes.len() as u16);
@@ -209,9 +210,7 @@ impl Cpu {
             }
 
             ExInstruction::Pop(r) => {
-                println!("{:?}", self);
                 self.pop(itct, r);
-                println!("{:?}", self);
             },
 
             ExInstruction::Push(r) => {
@@ -227,9 +226,10 @@ impl Cpu {
             }
         };
 
+        instruction
     }
 
-    fn read_8bit_register(&self, interconnect: &Interconnect, reg: instruction::Reg8) -> u8 {
+    pub fn read_8bit_register(&self, interconnect: &Interconnect, reg: instruction::Reg8) -> u8 {
         match reg {
             instruction::Reg8::A => self.a,
             instruction::Reg8::B => self.b,
@@ -238,6 +238,7 @@ impl Cpu {
             instruction::Reg8::E => self.e,
             instruction::Reg8::H => self.h,
             instruction::Reg8::L => self.l,
+            instruction::Reg8::F => self.f,
 
             instruction::Reg8::MemBC => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::BC)),
             instruction::Reg8::MemDE => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::DE)),
@@ -260,6 +261,7 @@ impl Cpu {
             instruction::Reg8::E => self.e = val,
             instruction::Reg8::H => self.h = val,
             instruction::Reg8::L => self.l = val,
+            instruction::Reg8::F => self.f = val,
 
             instruction::Reg8::MemBC => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::BC), val),
             instruction::Reg8::MemDE => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::DE), val),
@@ -273,12 +275,13 @@ impl Cpu {
         };
     }
 
-    fn read_16bit_register(&self, reg: instruction::Reg16) -> u16 {
+    pub fn read_16bit_register(&self, reg: instruction::Reg16) -> u16 {
         match reg {
             instruction::Reg16::BC => ((self.b as u16) << 8) + (self.c as u16),
             instruction::Reg16::DE => ((self.d as u16) << 8) + (self.e as u16),
             instruction::Reg16::HL => ((self.h as u16) << 8) + (self.l as u16),
             instruction::Reg16::SP => self.sp,
+            instruction::Reg16::PC => self.pc,
         }
     }
 
@@ -302,6 +305,9 @@ impl Cpu {
             instruction::Reg16::SP => {
                 self.sp = val;
             },
+            instruction::Reg16::PC => {
+                self.pc = val;
+            }
         };
     }
 
@@ -366,6 +372,12 @@ impl Cpu {
                 itct.write_byte(ha, hb);
                 itct.write_byte(la, lb);
             },
+            instruction::Reg16::PC => { // For the sake of completion? But maybe I sould just use _
+                let hb = (self.pc >> 8) as u8;
+                let lb = self.pc as u8;
+                itct.write_byte(ha, hb);
+                itct.write_byte(la, lb);
+            },
         }
 
         self.sp = la;
@@ -392,9 +404,7 @@ impl Cpu {
                 self.h = hi_byte;
                 self.l = lo_byte;
             },
-            instruction::Reg16::SP => {
-                // Should never happen
-            },
+            _ => {},
         }
 
         self.sp = self.sp.wrapping_add(2);
