@@ -221,8 +221,6 @@ fn decode_opcode(opcode: u8) -> ExInstruction {
 		0x00 => ExInstruction::Nop,
 
 		0xE2 => ExInstruction::Load8(Reg8::MemC, Reg8::A),
-		0x77 => ExInstruction::Load8(Reg8::MemHL, Reg8::A),
-		0x7B => ExInstruction::Load8(Reg8::A, Reg8::E),
 		0xE0 => ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A),
 		0x1A => ExInstruction::Load8(Reg8::A, Reg8::MemDE),
 		0xEA => ExInstruction::Load8(Reg8::Mem(0u16), Reg8::A),
