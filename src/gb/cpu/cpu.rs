@@ -2,6 +2,8 @@ use super::super::Interconnect;
 use super::instruction;
 use super::instruction::ExInstruction;
 
+use std::fmt;
+
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct Cpu {
@@ -58,6 +60,36 @@ impl Default for Cpu {
             pc: INIT_ADDRESS,
         }
 	}
+}
+
+impl fmt::Display for Cpu {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // This must be the ugliest write ever created
+        // There must be a nicer way to do this, but I've been looking for it
+        // for too long and I just want to advance with this.
+        // If you are reading this and know a better way to this (which must exist)
+        // then please, submit a pull request.
+        write!(f, "A: {:02X} |\nB: {:02X} | C: {:02X}\nD: {:02X} | E: {:02X}\nH: {:02X} | L: {:02X}\n-----------------\nSP: {:04X}\nPC: {:04X}\n\nF: {} {} {} {} {:04b}\n   Z N H C ----",
+               self.a, self.b, self.c, self.d, self.e, self.h, self.l, self.sp, self.pc,
+               if self.f & Z_MASK == 0 {"0"} else {"1"},
+               if self.f & N_MASK == 0 {"0"} else {"1"},
+               if self.f & H_MASK == 0 {"0"} else {"1"},
+               if self.f & C_MASK == 0 {"0"} else {"1"},
+               self.f & 0x0F)
+
+        /* It should look something like this:
+        A: 0xFF |
+        B: 0xFF | C: 0xFF
+        D: 0xFF | E: 0xFF
+        H: 0xFF | L: 0xFF
+        -----------------
+        SP: 0xFFFF
+        PC: 0xFFFF
+
+        F: 1 0 1 0 1111
+           Z N H C ----
+        */
+    }
 }
 
 #[allow(dead_code)]

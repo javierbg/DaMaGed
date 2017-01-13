@@ -76,6 +76,12 @@ impl GB {
 						}
 					}
 
+					DebugOp::Step => {
+						let pc_of_inst = self.cpu.pc; // Needs to be retreived before step
+						let inst = self.cpu.step(&mut self.interconnect);
+						println!("  {:04X} : {}", pc_of_inst, inst);
+					}
+
 					DebugOp::PrintRegister(r) => {
 						match r {
 							Register::Register8(r8) => {
@@ -87,6 +93,10 @@ impl GB {
 								println!("{}: {:04X}", r16, val);
 							}
 						}
+					}
+
+					DebugOp::PrintCpuRegs => {
+						println!("{}", self.cpu);
 					}
 
 					DebugOp::Quit => break,
@@ -130,6 +140,8 @@ impl GB {
 					}
 				}
 			},
+
+			"pa" => Some(DebugOp::PrintCpuRegs),
 
 			"p" => {
 				if chunks.len() != 2 {
@@ -183,6 +195,8 @@ impl GB {
 				}
 			}
 
+			"s" => Some(DebugOp::Step),
+
 			_ => None
 		}
 	}
@@ -194,4 +208,6 @@ enum DebugOp {
 	PrintRegister(Register), // Print the contents of a register
 	Quit,
 	Disassemble(u16), // Disassemble the next n instructions
+	PrintCpuRegs, // Print all CPU registers
+	Step, // Execute just one CPU instruction
 }
