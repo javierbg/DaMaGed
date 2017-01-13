@@ -41,7 +41,12 @@ impl Interconnect {
 			Addr::Bank0(_) | Addr::BankN(_) => {
 				self.rom.read_rom(real_addr, self.io.boot_sequence())
 			},
-			_ => 0u8
+
+			Addr::HighRam(a) => self.high_ram[a as usize],
+			
+			_ => {
+				panic!("Reading from {:04X} not implemented", addr);
+			}
 		}
 	}
 
@@ -59,6 +64,7 @@ impl Interconnect {
 			Addr::HighRam(a) => {
 				println!("Writing {:02X} into High Ram address {:04X}", val, addr);
 				self.high_ram[a as usize] = val;
+				println!("{}", self.high_ram[a as usize]);
 			},
 
 			_ => {
