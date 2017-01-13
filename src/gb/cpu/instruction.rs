@@ -14,10 +14,12 @@ impl Instruction {
 		let ex = &self.ex;
 		match ex {
 			&ExInstruction::Nop => "nop".into(),
+			&ExInstruction::Load8(Reg8::MemH(a), Reg8::A) => format!("ldh ($ff00+{:02x}),a", a),
+			&ExInstruction::Load8(Reg8::A, Reg8::MemH(a)) => format!("ldh a,($ff00+{:02x})", a),
 			&ExInstruction::Load8(dst, src) => format!("ld {},{}",dst,src),
-			&ExInstruction::Load8Imm(dst, val) => format!("ld {},0{:02x}h",dst,val),
+			&ExInstruction::Load8Imm(dst, val) => format!("ld {},${:02x}",dst,val),
 			&ExInstruction::Load16(dst, src) => format!("ld {},{}",dst,src),
-			&ExInstruction::Load16Imm(dst, val) => format!("ld {},0{:04x}h",dst,val),
+			&ExInstruction::Load16Imm(dst, val) => format!("ld {},${:04x}",dst,val),
 			&ExInstruction::JrC(jr, cond) => format!("jr {},${}",cond,jr),
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::LoadHLPostinc => "ld (hl+),a".into(),
@@ -26,7 +28,7 @@ impl Instruction {
 			&ExInstruction::Decrement8(r) => format!("dec {}",r),
 			&ExInstruction::Increment16(r) => format!("inc {}",r),
 			&ExInstruction::Decrement16(r) => format!("dec {}",r),
-			&ExInstruction::Call(a) => format!("call 0{:04x}h", a),
+			&ExInstruction::Call(a) => format!("call ${:04x}", a),
 			&ExInstruction::Return => format!("ret"),
 			&ExInstruction::Push(r) => format!("push {}", r),
 			&ExInstruction::Pop(r)  => format!("pop {}", r),
@@ -216,12 +218,14 @@ impl fmt::Display for Condition {
 	}
 }
 
+/* If you think the code below is ugly:
+     1. You are sane
+	 2. Please, take a look at issue #1 */
 fn decode_opcode(opcode: u8) -> ExInstruction {
 	match opcode {
 		0x00 => ExInstruction::Nop,
 
 		0xE2 => ExInstruction::Load8(Reg8::MemC, Reg8::A),
-		0xE0 => ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A),
 		0x1A => ExInstruction::Load8(Reg8::A, Reg8::MemDE),
 		0xEA => ExInstruction::Load8(Reg8::Mem(0u16), Reg8::A),
 
@@ -297,10 +301,17 @@ fn decode_opcode(opcode: u8) -> ExInstruction {
 		0x7E => ExInstruction::Load8(Reg8::A, Reg8::MemHL),
 		0x7F => ExInstruction::Load8(Reg8::A, Reg8::A),
 
-		0x3E => ExInstruction::Load8Imm(Reg8::A, 0u8),
 		0x06 => ExInstruction::Load8Imm(Reg8::B, 0u8),
 		0x0E => ExInstruction::Load8Imm(Reg8::C, 0u8),
+		0x16 => ExInstruction::Load8Imm(Reg8::D, 0u8),
+		0x1E => ExInstruction::Load8Imm(Reg8::E, 0u8),
+		0x26 => ExInstruction::Load8Imm(Reg8::H, 0u8),
 		0x2E => ExInstruction::Load8Imm(Reg8::L, 0u8),
+		0x36 => ExInstruction::Load8Imm(Reg8::MemHL, 0u8),
+		0x3E => ExInstruction::Load8Imm(Reg8::A, 0u8),
+
+		0xE0 => ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A),
+		0xF0 => ExInstruction::Load8(Reg8::A, Reg8::MemH(0u8)),
 
 		0x11 => ExInstruction::Load16Imm(Reg16::DE, 0u16),
 		0x21 => ExInstruction::Load16Imm(Reg16::HL, 0u16),
@@ -314,11 +325,23 @@ fn decode_opcode(opcode: u8) -> ExInstruction {
 		0x22 => ExInstruction::LoadHLPostinc,
 		0xAF => ExInstruction::Xor(Reg8::A),
 
+		0x04 => ExInstruction::Increment8(Reg8::B),
 		0x0C => ExInstruction::Increment8(Reg8::C),
+		0x14 => ExInstruction::Increment8(Reg8::D),
+		0x1C => ExInstruction::Increment8(Reg8::E),
+		0x24 => ExInstruction::Increment8(Reg8::H),
+		0x2C => ExInstruction::Increment8(Reg8::L),
+		0x34 => ExInstruction::Increment8(Reg8::MemHL),
+		0x3C => ExInstruction::Increment8(Reg8::A),
 
-		0x3D => ExInstruction::Decrement8(Reg8::A),
 		0x05 => ExInstruction::Decrement8(Reg8::B),
 		0x0D => ExInstruction::Decrement8(Reg8::C),
+		0x15 => ExInstruction::Decrement8(Reg8::D),
+		0x1D => ExInstruction::Decrement8(Reg8::E),
+		0x25 => ExInstruction::Decrement8(Reg8::H),
+		0x2D => ExInstruction::Decrement8(Reg8::L),
+		0x35 => ExInstruction::Decrement8(Reg8::MemHL),
+		0x3D => ExInstruction::Decrement8(Reg8::A),
 
 		0x23 => ExInstruction::Increment16(Reg16::HL),
 		0x13 => ExInstruction::Increment16(Reg16::DE),
