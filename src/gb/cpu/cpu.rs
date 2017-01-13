@@ -103,7 +103,8 @@ impl Cpu {
 
     pub fn step(&mut self, itct: &mut Interconnect) -> instruction::Instruction{
         // get instruction and instruction length from memory with pc
-        let instruction = instruction::get_next_instruction(itct, self.pc);
+        let inst_addr = self.pc;
+        let instruction = instruction::get_next_instruction(itct, inst_addr);
 
         // increment pc with instruction length
         self.pc = self.pc.wrapping_add(instruction.bytes.len() as u16);
@@ -132,6 +133,13 @@ impl Cpu {
                 self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
             },
 
+            ExInstruction::LoadHLPostinc => {
+                let a: u8 = self.a;
+                self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
+                let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_add(1u16);
+                self.load_16bit_register(instruction::Reg16::HL, hl);
+            },
+
             ExInstruction::Xor(r) => {
                 let newval = self.a ^ self.read_8bit_register(itct, r);
                 self.f = if newval == 0x00 { 0x80 } else { 0x00 };
@@ -140,14 +148,21 @@ impl Cpu {
 
             ExInstruction::Increment8(r) => {
                 let val = self.read_8bit_register(itct, r);
-                let newval = self.add_with_carry(val, 1);
+                let newval = self.add_update_flags(val, 1);
                 self.load_8bit_register(itct, r, newval);
             },
 
             ExInstruction::Decrement8(r) => {
                 let val = self.read_8bit_register(itct, r);
-                let newval = self.sub_with_carry(val, 1);
+                let newval = self.sub_update_flags(val, 1);
                 self.load_8bit_register(itct, r, newval);
+            },
+
+            ExInstruction::Increment16(r) => {
+                let val = self.read_16bit_register(r);
+                // Do NOT update flags
+                let newval = val.wrapping_add(1);
+                self.load_16bit_register(r, newval);
             },
 
             ExInstruction::Rotate(reg, dir, carry) => {
@@ -222,6 +237,10 @@ impl Cpu {
                 self.set_flag(Flag::H);
             },
 
+            ExInstruction::Jr(j) => {
+                self.pc = self.pc.wrapping_add(j as u16);
+            },
+
             ExInstruction::JrC(j, c) => {
                 if self.cond(c) {
                     self.pc = self.pc.wrapping_add(j as u16);
@@ -229,17 +248,13 @@ impl Cpu {
             },
 
             ExInstruction::Call(a) => {
-                let hb = (self.pc >> 8) as u8;
-                let lb = self.pc as u8;
-
-                let ha = self.sp.wrapping_sub(1);
-                let la = self.sp.wrapping_sub(2);
-                itct.write_byte(ha, hb);
-                itct.write_byte(la, lb);
-
-                self.sp = la;
+                self.push(itct, instruction::Reg16::PC);
                 self.pc = a;
-            }
+            },
+
+            ExInstruction::Return => {
+                self.pop(itct, instruction::Reg16::PC);
+            },
 
             ExInstruction::Pop(r) => {
                 self.pop(itct, r);
@@ -249,8 +264,13 @@ impl Cpu {
                 self.push(itct, r);
             },
 
+            ExInstruction::CompareImm(val) => {
+                let acc = self.a;
+                self.sub_update_flags(acc, val);
+            },
+
             ExInstruction::Unimplemented => {
-                panic!("Uninmplemented instruction");
+                panic!("Uninmplemented instruction {:02X} at address {:04X}", instruction.bytes[0], inst_addr);
             },
 
             _ => {
@@ -382,37 +402,37 @@ impl Cpu {
 
     // Push a 16 bit value to the stack
     fn push(&mut self, itct: &mut Interconnect, reg: instruction::Reg16) {
-        let ha = self.sp.wrapping_sub(1);
-        let la = self.sp.wrapping_sub(2);
+        let hi_addr = self.sp.wrapping_sub(1);
+        let lo_addr = self.sp.wrapping_sub(2);
 
         match reg {
             instruction::Reg16::BC => {
-                itct.write_byte(ha, self.b);
-                itct.write_byte(la, self.c);
+                itct.write_byte(hi_addr, self.b);
+                itct.write_byte(lo_addr, self.c);
             },
             instruction::Reg16::DE => {
-                itct.write_byte(ha, self.d);
-                itct.write_byte(la, self.e);
+                itct.write_byte(hi_addr, self.d);
+                itct.write_byte(lo_addr, self.e);
             },
             instruction::Reg16::HL => {
-                itct.write_byte(ha, self.h);
-                itct.write_byte(la, self.l);
+                itct.write_byte(hi_addr, self.h);
+                itct.write_byte(lo_addr, self.l);
             },
             instruction::Reg16::SP => {
-                let hb = (self.sp >> 8) as u8;
-                let lb = self.sp as u8;
-                itct.write_byte(ha, hb);
-                itct.write_byte(la, lb);
+                let hi_byte = (self.sp >> 8) as u8;
+                let lo_byte = self.sp as u8;
+                itct.write_byte(hi_addr, hi_byte);
+                itct.write_byte(lo_addr, lo_byte);
             },
             instruction::Reg16::PC => { // For the sake of completion? But maybe I sould just use _
-                let hb = (self.pc >> 8) as u8;
-                let lb = self.pc as u8;
-                itct.write_byte(ha, hb);
-                itct.write_byte(la, lb);
+                let hi_byte = (self.pc >> 8) as u8;
+                let lo_byte = self.pc as u8;
+                itct.write_byte(hi_addr, hi_byte);
+                itct.write_byte(lo_addr, lo_byte);
             },
         }
 
-        self.sp = la;
+        self.sp = lo_addr;
     }
 
     // Pop a 16 bit value from the stack
@@ -436,6 +456,9 @@ impl Cpu {
                 self.h = hi_byte;
                 self.l = lo_byte;
             },
+            instruction::Reg16::PC => {
+                self.pc = ((hi_byte as u16) << 8) + (lo_byte as u16);
+            },
             _ => {},
         }
 
@@ -443,7 +466,7 @@ impl Cpu {
     }
 
     // Adds two 8-bit numbers and marks the flags acordingly
-    fn add_with_carry(&mut self, a: u8, b: u8) -> u8 {
+    fn add_update_flags(&mut self, a: u8, b: u8) -> u8 {
         let (result,c_flag) = a.overflowing_add(b);
         let h_flag = (((a & 0x0F) + (b & 0x0F)) & 0xF0) != 0;
         let z_flag = result == 0;
@@ -473,11 +496,11 @@ impl Cpu {
 
     // Subracts two 8-bit numbers (a-b) and marks the flags acordingly
     // TODO: Check if this is correct
-    fn sub_with_carry(&mut self, a: u8, b: u8) -> u8 {
+    fn sub_update_flags(&mut self, a: u8, b: u8) -> u8 {
         // Two's complement
         let negative_b = (!b).wrapping_add(1);
         self.set_flag(Flag::N);
 
-        self.add_with_carry(a, negative_b)
+        self.add_update_flags(a, negative_b)
     }
 }
