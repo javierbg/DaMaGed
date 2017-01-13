@@ -33,3 +33,5 @@ Any submitted contribution shall be licensed as above unless explicitly stated, 
 [pastraiser.com - Gameboy CPU (LR35902) instruction set](http://pastraiser.com/cpu/gameboy/gameboy_opcodes.html)
 
 [The Ultimate Game Boy Talk - Michael Steil (33c3)](https://www.youtube.com/watch?v=HyzD8pNlpwI)
+
+[Game Boy Bootstrap ROM - GbDevWiki](http://gbdev.gg8.se/wiki/articles/Gameboy_Bootstrap_ROM)
