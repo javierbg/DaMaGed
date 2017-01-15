@@ -104,13 +104,15 @@ impl Cpu {
     pub fn step(&mut self, itct: &mut Interconnect) -> instruction::Instruction{
         // get instruction and instruction length from memory with pc
         let inst_addr = self.pc;
-        let instruction = instruction::get_next_instruction(itct, inst_addr);
+        let next_instruction = instruction::get_next_instruction(itct, inst_addr);
+        let mut additional_cycles: u32 = 0; // For conditinal jumps/calls/rets, how many extra
+                                            // cpu cycles it will take
 
         // increment pc with instruction length
-        self.pc = self.pc.wrapping_add(instruction.bytes.len() as u16);
+        self.pc = self.pc.wrapping_add(next_instruction.bytes.len() as u16);
 
         // execute instruction
-        match instruction.ex {
+        match next_instruction.ex {
             ExInstruction::Nop => {},
 
             ExInstruction::Load8(dst, src) => {
@@ -244,6 +246,7 @@ impl Cpu {
             ExInstruction::JrC(j, c) => {
                 if self.cond(c) {
                     self.pc = self.pc.wrapping_add(j as u16);
+                    additional_cycles = 4;
                 }
             },
 
@@ -270,15 +273,19 @@ impl Cpu {
             },
 
             ExInstruction::Unimplemented => {
-                panic!("Uninmplemented instruction {:02X} at address {:04X}", instruction.bytes[0], inst_addr);
+                panic!("Uninmplemented instruction {:02X} at address {:04X}", next_instruction.bytes[0], inst_addr);
             },
 
             _ => {
-                panic!("Instruction `{:?}' not implemented yet", instruction.ex);
+                panic!("Instruction `{:?}' not implemented yet", next_instruction.ex);
             }
         };
 
-        instruction
+        instruction::Instruction {
+            ex: next_instruction.ex,
+            bytes: next_instruction.bytes,
+            cycles: next_instruction.cycles + additional_cycles
+        }
     }
 
     pub fn read_8bit_register(&self, interconnect: &Interconnect, reg: instruction::Reg8) -> u8 {

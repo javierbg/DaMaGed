@@ -7,6 +7,7 @@ use std::iter;
 pub struct Instruction {
 	pub ex: ExInstruction,
 	pub bytes: Vec<u8>,
+	pub cycles: u32,
 }
 
 impl Instruction {
@@ -220,158 +221,167 @@ impl fmt::Display for Condition {
 
 /* If you think the code below is ugly:
      1. You are sane
-	 2. Please, take a look at issue #1 */
-fn decode_opcode(opcode: u8) -> ExInstruction {
+	 2. Please, take a look at issue #1
+
+   Returns the Executable Instruction along with the number of CPU cycles */
+fn decode_opcode(opcode: u8) -> (ExInstruction, u32) {
 	match opcode {
-		0x00 => ExInstruction::Nop,
+		0xCB => (ExInstruction::PrefixCB, 0),
+		0x00 => (ExInstruction::Nop, 4),
 
-		0xE2 => ExInstruction::Load8(Reg8::MemC, Reg8::A),
-		0x1A => ExInstruction::Load8(Reg8::A, Reg8::MemDE),
-		0xEA => ExInstruction::Load8(Reg8::Mem(0u16), Reg8::A),
+		0xE2 => (ExInstruction::Load8(Reg8::MemC, Reg8::A), 8),
+		0x1A => (ExInstruction::Load8(Reg8::A, Reg8::MemDE), 8),
+		0xEA => (ExInstruction::Load8(Reg8::Mem(0u16), Reg8::A), 16),
 
-		0x40 => ExInstruction::Load8(Reg8::B, Reg8::B),
-		0x41 => ExInstruction::Load8(Reg8::B, Reg8::C),
-		0x42 => ExInstruction::Load8(Reg8::B, Reg8::D),
-		0x43 => ExInstruction::Load8(Reg8::B, Reg8::E),
-		0x44 => ExInstruction::Load8(Reg8::B, Reg8::H),
-		0x45 => ExInstruction::Load8(Reg8::B, Reg8::L),
-		0x46 => ExInstruction::Load8(Reg8::B, Reg8::MemHL),
-		0x47 => ExInstruction::Load8(Reg8::B, Reg8::A),
+		0x40 => (ExInstruction::Load8(Reg8::B, Reg8::B), 4),
+		0x41 => (ExInstruction::Load8(Reg8::B, Reg8::C), 4),
+		0x42 => (ExInstruction::Load8(Reg8::B, Reg8::D), 4),
+		0x43 => (ExInstruction::Load8(Reg8::B, Reg8::E), 4),
+		0x44 => (ExInstruction::Load8(Reg8::B, Reg8::H), 4),
+		0x45 => (ExInstruction::Load8(Reg8::B, Reg8::L), 4),
+		0x46 => (ExInstruction::Load8(Reg8::B, Reg8::MemHL), 8),
+		0x47 => (ExInstruction::Load8(Reg8::B, Reg8::A), 4),
 
-		0x48 => ExInstruction::Load8(Reg8::C, Reg8::B),
-		0x49 => ExInstruction::Load8(Reg8::C, Reg8::C),
-		0x4A => ExInstruction::Load8(Reg8::C, Reg8::D),
-		0x4B => ExInstruction::Load8(Reg8::C, Reg8::E),
-		0x4C => ExInstruction::Load8(Reg8::C, Reg8::H),
-		0x4D => ExInstruction::Load8(Reg8::C, Reg8::L),
-		0x4E => ExInstruction::Load8(Reg8::C, Reg8::MemHL),
-		0x4F => ExInstruction::Load8(Reg8::C, Reg8::A),
+		0x48 => (ExInstruction::Load8(Reg8::C, Reg8::B), 4),
+		0x49 => (ExInstruction::Load8(Reg8::C, Reg8::C), 4),
+		0x4A => (ExInstruction::Load8(Reg8::C, Reg8::D), 4),
+		0x4B => (ExInstruction::Load8(Reg8::C, Reg8::E), 4),
+		0x4C => (ExInstruction::Load8(Reg8::C, Reg8::H), 4),
+		0x4D => (ExInstruction::Load8(Reg8::C, Reg8::L), 4),
+		0x4E => (ExInstruction::Load8(Reg8::C, Reg8::MemHL), 8),
+		0x4F => (ExInstruction::Load8(Reg8::C, Reg8::A), 4),
 
-		0x50 => ExInstruction::Load8(Reg8::D, Reg8::B),
-		0x51 => ExInstruction::Load8(Reg8::D, Reg8::C),
-		0x52 => ExInstruction::Load8(Reg8::D, Reg8::D),
-		0x53 => ExInstruction::Load8(Reg8::D, Reg8::E),
-		0x54 => ExInstruction::Load8(Reg8::D, Reg8::H),
-		0x55 => ExInstruction::Load8(Reg8::D, Reg8::L),
-		0x56 => ExInstruction::Load8(Reg8::D, Reg8::MemHL),
-		0x57 => ExInstruction::Load8(Reg8::D, Reg8::A),
+		0x50 => (ExInstruction::Load8(Reg8::D, Reg8::B), 4),
+		0x51 => (ExInstruction::Load8(Reg8::D, Reg8::C), 4),
+		0x52 => (ExInstruction::Load8(Reg8::D, Reg8::D), 4),
+		0x53 => (ExInstruction::Load8(Reg8::D, Reg8::E), 4),
+		0x54 => (ExInstruction::Load8(Reg8::D, Reg8::H), 4),
+		0x55 => (ExInstruction::Load8(Reg8::D, Reg8::L), 4),
+		0x56 => (ExInstruction::Load8(Reg8::D, Reg8::MemHL), 8),
+		0x57 => (ExInstruction::Load8(Reg8::D, Reg8::A), 4),
 
-		0x58 => ExInstruction::Load8(Reg8::E, Reg8::B),
-		0x59 => ExInstruction::Load8(Reg8::E, Reg8::C),
-		0x5A => ExInstruction::Load8(Reg8::E, Reg8::D),
-		0x5B => ExInstruction::Load8(Reg8::E, Reg8::E),
-		0x5C => ExInstruction::Load8(Reg8::E, Reg8::H),
-		0x5D => ExInstruction::Load8(Reg8::E, Reg8::L),
-		0x5E => ExInstruction::Load8(Reg8::E, Reg8::MemHL),
-		0x5F => ExInstruction::Load8(Reg8::E, Reg8::A),
+		0x58 => (ExInstruction::Load8(Reg8::E, Reg8::B), 4),
+		0x59 => (ExInstruction::Load8(Reg8::E, Reg8::C), 4),
+		0x5A => (ExInstruction::Load8(Reg8::E, Reg8::D), 4),
+		0x5B => (ExInstruction::Load8(Reg8::E, Reg8::E), 4),
+		0x5C => (ExInstruction::Load8(Reg8::E, Reg8::H), 4),
+		0x5D => (ExInstruction::Load8(Reg8::E, Reg8::L), 4),
+		0x5E => (ExInstruction::Load8(Reg8::E, Reg8::MemHL), 8),
+		0x5F => (ExInstruction::Load8(Reg8::E, Reg8::A), 4),
 
-		0x60 => ExInstruction::Load8(Reg8::H, Reg8::B),
-		0x61 => ExInstruction::Load8(Reg8::H, Reg8::C),
-		0x62 => ExInstruction::Load8(Reg8::H, Reg8::D),
-		0x63 => ExInstruction::Load8(Reg8::H, Reg8::E),
-		0x64 => ExInstruction::Load8(Reg8::H, Reg8::H),
-		0x65 => ExInstruction::Load8(Reg8::H, Reg8::L),
-		0x66 => ExInstruction::Load8(Reg8::H, Reg8::MemHL),
-		0x67 => ExInstruction::Load8(Reg8::H, Reg8::A),
+		0x60 => (ExInstruction::Load8(Reg8::H, Reg8::B), 4),
+		0x61 => (ExInstruction::Load8(Reg8::H, Reg8::C), 4),
+		0x62 => (ExInstruction::Load8(Reg8::H, Reg8::D), 4),
+		0x63 => (ExInstruction::Load8(Reg8::H, Reg8::E), 4),
+		0x64 => (ExInstruction::Load8(Reg8::H, Reg8::H), 4),
+		0x65 => (ExInstruction::Load8(Reg8::H, Reg8::L), 4),
+		0x66 => (ExInstruction::Load8(Reg8::H, Reg8::MemHL), 8),
+		0x67 => (ExInstruction::Load8(Reg8::H, Reg8::A), 4),
 
-		0x68 => ExInstruction::Load8(Reg8::L, Reg8::B),
-		0x69 => ExInstruction::Load8(Reg8::L, Reg8::C),
-		0x6A => ExInstruction::Load8(Reg8::L, Reg8::D),
-		0x6B => ExInstruction::Load8(Reg8::L, Reg8::E),
-		0x6C => ExInstruction::Load8(Reg8::L, Reg8::H),
-		0x6D => ExInstruction::Load8(Reg8::L, Reg8::L),
-		0x6E => ExInstruction::Load8(Reg8::L, Reg8::MemHL),
-		0x6F => ExInstruction::Load8(Reg8::L, Reg8::A),
+		0x68 => (ExInstruction::Load8(Reg8::L, Reg8::B), 4),
+		0x69 => (ExInstruction::Load8(Reg8::L, Reg8::C), 4),
+		0x6A => (ExInstruction::Load8(Reg8::L, Reg8::D), 4),
+		0x6B => (ExInstruction::Load8(Reg8::L, Reg8::E), 4),
+		0x6C => (ExInstruction::Load8(Reg8::L, Reg8::H), 4),
+		0x6D => (ExInstruction::Load8(Reg8::L, Reg8::L), 4),
+		0x6E => (ExInstruction::Load8(Reg8::L, Reg8::MemHL), 8),
+		0x6F => (ExInstruction::Load8(Reg8::L, Reg8::A), 4),
 
-		0x70 => ExInstruction::Load8(Reg8::MemHL, Reg8::B),
-		0x71 => ExInstruction::Load8(Reg8::MemHL, Reg8::C),
-		0x72 => ExInstruction::Load8(Reg8::MemHL, Reg8::D),
-		0x73 => ExInstruction::Load8(Reg8::MemHL, Reg8::E),
-		0x74 => ExInstruction::Load8(Reg8::MemHL, Reg8::H),
-		0x75 => ExInstruction::Load8(Reg8::MemHL, Reg8::L),
-		0x76 => ExInstruction::Halt,
-		0x77 => ExInstruction::Load8(Reg8::MemHL, Reg8::A),
+		0x70 => (ExInstruction::Load8(Reg8::MemHL, Reg8::B), 8),
+		0x71 => (ExInstruction::Load8(Reg8::MemHL, Reg8::C), 8),
+		0x72 => (ExInstruction::Load8(Reg8::MemHL, Reg8::D), 8),
+		0x73 => (ExInstruction::Load8(Reg8::MemHL, Reg8::E), 8),
+		0x74 => (ExInstruction::Load8(Reg8::MemHL, Reg8::H), 8),
+		0x75 => (ExInstruction::Load8(Reg8::MemHL, Reg8::L), 8),
+		0x76 => (ExInstruction::Halt, 4),
+		0x77 => (ExInstruction::Load8(Reg8::MemHL, Reg8::A), 8),
 
-		0x78 => ExInstruction::Load8(Reg8::A, Reg8::B),
-		0x79 => ExInstruction::Load8(Reg8::A, Reg8::C),
-		0x7A => ExInstruction::Load8(Reg8::A, Reg8::D),
-		0x7B => ExInstruction::Load8(Reg8::A, Reg8::E),
-		0x7C => ExInstruction::Load8(Reg8::A, Reg8::H),
-		0x7D => ExInstruction::Load8(Reg8::A, Reg8::L),
-		0x7E => ExInstruction::Load8(Reg8::A, Reg8::MemHL),
-		0x7F => ExInstruction::Load8(Reg8::A, Reg8::A),
+		0x78 => (ExInstruction::Load8(Reg8::A, Reg8::B), 4),
+		0x79 => (ExInstruction::Load8(Reg8::A, Reg8::C), 4),
+		0x7A => (ExInstruction::Load8(Reg8::A, Reg8::D), 4),
+		0x7B => (ExInstruction::Load8(Reg8::A, Reg8::E), 4),
+		0x7C => (ExInstruction::Load8(Reg8::A, Reg8::H), 4),
+		0x7D => (ExInstruction::Load8(Reg8::A, Reg8::L), 4),
+		0x7E => (ExInstruction::Load8(Reg8::A, Reg8::MemHL), 8),
+		0x7F => (ExInstruction::Load8(Reg8::A, Reg8::A), 4),
 
-		0x06 => ExInstruction::Load8Imm(Reg8::B, 0u8),
-		0x0E => ExInstruction::Load8Imm(Reg8::C, 0u8),
-		0x16 => ExInstruction::Load8Imm(Reg8::D, 0u8),
-		0x1E => ExInstruction::Load8Imm(Reg8::E, 0u8),
-		0x26 => ExInstruction::Load8Imm(Reg8::H, 0u8),
-		0x2E => ExInstruction::Load8Imm(Reg8::L, 0u8),
-		0x36 => ExInstruction::Load8Imm(Reg8::MemHL, 0u8),
-		0x3E => ExInstruction::Load8Imm(Reg8::A, 0u8),
+		0x06 => (ExInstruction::Load8Imm(Reg8::B, 0u8), 8),
+		0x0E => (ExInstruction::Load8Imm(Reg8::C, 0u8), 8),
+		0x16 => (ExInstruction::Load8Imm(Reg8::D, 0u8), 8),
+		0x1E => (ExInstruction::Load8Imm(Reg8::E, 0u8), 8),
+		0x26 => (ExInstruction::Load8Imm(Reg8::H, 0u8), 8),
+		0x2E => (ExInstruction::Load8Imm(Reg8::L, 0u8), 8),
+		0x36 => (ExInstruction::Load8Imm(Reg8::MemHL, 0u8), 12),
+		0x3E => (ExInstruction::Load8Imm(Reg8::A, 0u8), 8),
 
-		0xE0 => ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A),
-		0xF0 => ExInstruction::Load8(Reg8::A, Reg8::MemH(0u8)),
+		0xE0 => (ExInstruction::Load8(Reg8::MemH(0u8), Reg8::A), 12),
+		0xF0 => (ExInstruction::Load8(Reg8::A, Reg8::MemH(0u8)), 12),
 
-		0x11 => ExInstruction::Load16Imm(Reg16::DE, 0u16),
-		0x21 => ExInstruction::Load16Imm(Reg16::HL, 0u16),
-		0x31 => ExInstruction::Load16Imm(Reg16::SP, 0u16),
+		0x01 => (ExInstruction::Load16Imm(Reg16::BC, 0u16), 12),
+		0x11 => (ExInstruction::Load16Imm(Reg16::DE, 0u16), 12),
+		0x21 => (ExInstruction::Load16Imm(Reg16::HL, 0u16), 12),
+		0x31 => (ExInstruction::Load16Imm(Reg16::SP, 0u16), 12),
 
-		0x18 => ExInstruction::Jr(0i8),
-		0x28 => ExInstruction::JrC(0i8, Condition::Z),
-		0x20 => ExInstruction::JrC(0i8, Condition::NZ),
+		// Bear in mind that conditional jump instructions will take
+		// more CPU cycles if the jump is made
+		0x18 => (ExInstruction::Jr(0i8), 8),
+		0x28 => (ExInstruction::JrC(0i8, Condition::Z), 8),
+		0x20 => (ExInstruction::JrC(0i8, Condition::NZ), 8),
 
-		0x32 => ExInstruction::LoadHLPredec,
-		0x22 => ExInstruction::LoadHLPostinc,
-		0xAF => ExInstruction::Xor(Reg8::A),
+		0x32 => (ExInstruction::LoadHLPredec, 8),
+		0x22 => (ExInstruction::LoadHLPostinc, 8),
 
-		0x04 => ExInstruction::Increment8(Reg8::B),
-		0x0C => ExInstruction::Increment8(Reg8::C),
-		0x14 => ExInstruction::Increment8(Reg8::D),
-		0x1C => ExInstruction::Increment8(Reg8::E),
-		0x24 => ExInstruction::Increment8(Reg8::H),
-		0x2C => ExInstruction::Increment8(Reg8::L),
-		0x34 => ExInstruction::Increment8(Reg8::MemHL),
-		0x3C => ExInstruction::Increment8(Reg8::A),
+		0xAF => (ExInstruction::Xor(Reg8::A), 4),
 
-		0x05 => ExInstruction::Decrement8(Reg8::B),
-		0x0D => ExInstruction::Decrement8(Reg8::C),
-		0x15 => ExInstruction::Decrement8(Reg8::D),
-		0x1D => ExInstruction::Decrement8(Reg8::E),
-		0x25 => ExInstruction::Decrement8(Reg8::H),
-		0x2D => ExInstruction::Decrement8(Reg8::L),
-		0x35 => ExInstruction::Decrement8(Reg8::MemHL),
-		0x3D => ExInstruction::Decrement8(Reg8::A),
+		0x04 => (ExInstruction::Increment8(Reg8::B), 4),
+		0x0C => (ExInstruction::Increment8(Reg8::C), 4),
+		0x14 => (ExInstruction::Increment8(Reg8::D), 4),
+		0x1C => (ExInstruction::Increment8(Reg8::E), 4),
+		0x24 => (ExInstruction::Increment8(Reg8::H), 4),
+		0x2C => (ExInstruction::Increment8(Reg8::L), 4),
+		0x34 => (ExInstruction::Increment8(Reg8::MemHL), 12),
+		0x3C => (ExInstruction::Increment8(Reg8::A), 4),
 
-		0x23 => ExInstruction::Increment16(Reg16::HL),
-		0x13 => ExInstruction::Increment16(Reg16::DE),
+		0x05 => (ExInstruction::Decrement8(Reg8::B), 4),
+		0x0D => (ExInstruction::Decrement8(Reg8::C), 4),
+		0x15 => (ExInstruction::Decrement8(Reg8::D), 4),
+		0x1D => (ExInstruction::Decrement8(Reg8::E), 4),
+		0x25 => (ExInstruction::Decrement8(Reg8::H), 4),
+		0x2D => (ExInstruction::Decrement8(Reg8::L), 4),
+		0x35 => (ExInstruction::Decrement8(Reg8::MemHL), 12),
+		0x3D => (ExInstruction::Decrement8(Reg8::A), 4),
 
-		0x17 => ExInstruction::Rotate(Reg8::A, true, false),
+		0x23 => (ExInstruction::Increment16(Reg16::HL), 8),
+		0x13 => (ExInstruction::Increment16(Reg16::DE), 8),
 
-		0xC5 => ExInstruction::Push(Reg16::BC),
-		0xC1 => ExInstruction::Pop(Reg16::BC),
+		0x17 => (ExInstruction::Rotate(Reg8::A, true, false), 4),
 
-		0xCD => ExInstruction::Call(0u16),
-		0xC9 => ExInstruction::Return,
+		0xC5 => (ExInstruction::Push(Reg16::BC), 16),
+		0xC1 => (ExInstruction::Pop(Reg16::BC), 12),
 
-		0xFE => ExInstruction::CompareImm(0u8),
+		0xCD => (ExInstruction::Call(0u16), 24),
+		0xC9 => (ExInstruction::Return, 16),
 
-		0xCB => ExInstruction::PrefixCB,
-		_ => ExInstruction::Unimplemented
+		0xFE => (ExInstruction::CompareImm(0u8), 8),
+
+		_ => (ExInstruction::Unimplemented, 0),
 	}
 }
 
-fn decode_cb_op_reg(opcode: u8) -> Reg8 {
+/* Decodes the register argument in a CP prefixed operation
+   Also returns the number of cycles of the operation, which only depends on this argument
+   (wether or not it needs to access memory) */
+fn decode_cb_op_reg(opcode: u8) -> (Reg8, u32) {
 	match opcode & 0x07 {
-		0b000 => Reg8::B,
-		0b001 => Reg8::C,
-		0b010 => Reg8::D,
-		0b011 => Reg8::E,
-		0b100 => Reg8::H,
-		0b101 => Reg8::L,
-		0b110 => Reg8::MemHL,
-		0b111 => Reg8::A,
-		_ => Reg8::A //Never should happen because of the AND operation, but pattern matching is strict
+		0b000 => (Reg8::B, 8),
+		0b001 => (Reg8::C, 8),
+		0b010 => (Reg8::D, 8),
+		0b011 => (Reg8::E, 8),
+		0b100 => (Reg8::H, 8),
+		0b101 => (Reg8::L, 8),
+		0b110 => (Reg8::MemHL, 16),
+		0b111 => (Reg8::A, 8),
+		_ => (Reg8::A, 8), //Never should happen because of the AND operation, but pattern matching is strict
 	}
 }
 
@@ -379,11 +389,11 @@ fn decode_cb_op_bit(opcode: u8) -> u8 {
 	(opcode & 0b00111000) >> 3
 }
 
-fn decode_cb_opcode(opcode: u8) -> ExInstruction {
-	let reg = decode_cb_op_reg(opcode);
+fn decode_cb_opcode(opcode: u8) -> (ExInstruction, u32) {
+	let (reg, n_cycles) = decode_cb_op_reg(opcode);
 
 	let first_two_bits = opcode & 0xC0;
-	if first_two_bits != 0 {
+	let inst = if first_two_bits != 0 {
 		let bit = decode_cb_op_bit(opcode);
 		match first_two_bits {
 			0x40 => ExInstruction::Bit(reg, bit),
@@ -404,7 +414,9 @@ fn decode_cb_opcode(opcode: u8) -> ExInstruction {
 			0x38 => ExInstruction::Shift(reg,false,false),  // SLL
 			_ => ExInstruction::Unimplemented // Should never happen
 		}
-	}
+	};
+
+	(inst, n_cycles)
 }
 
 // Retrieves the n next instructions
@@ -426,15 +438,19 @@ pub fn get_next_instructions(itct: &Interconnect, addr: u16, n_inst: u16) -> Vec
 pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction {
 	let opcode = interconnect.read_byte(pc);
 	let mut bytes: Vec<u8> = Vec::new();
+	let mut n_cycles: u32 = 0;
 	bytes.push(opcode);
 
-	let decoded = decode_opcode(opcode);
+	let (decoded, op_n_cycles) = decode_opcode(opcode);
+	n_cycles += op_n_cycles;
 
 	let inst = match decoded {
 		ExInstruction::PrefixCB => {
 			let second_byte = interconnect.read_byte(pc+1);
 			bytes.push(second_byte);
-			decode_cb_opcode(second_byte)
+			let (decoded_cb, cb_n_cycles) = decode_cb_opcode(second_byte);
+			n_cycles += cb_n_cycles;
+			decoded_cb
 		},
 
 		ExInstruction::Jr(_) => {
@@ -516,7 +532,8 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 
 	Instruction {
 		ex: inst,
-		bytes: bytes
+		bytes: bytes,
+		cycles: n_cycles
 	}
 }
 
