@@ -43,7 +43,7 @@ impl Interconnect {
 			},
 
 			Addr::HighRam(a) => self.high_ram[a as usize],
-			
+
 			_ => {
 				panic!("Reading from {:04X} not implemented", addr);
 			}
@@ -60,7 +60,7 @@ impl Interconnect {
 				println!("Writing {:02X} into VRAM address {:04X}", val, addr);
 				self.vram[a as usize] = val;
 			},
-			Addr::HardwareIO(_) => self.io.write_byte(real_addr, val),
+			Addr::HardwareIO(a) => self.io.write_byte(a, val),
 			Addr::HighRam(a) => {
 				println!("Writing {:02X} into High Ram address {:04X}", val, addr);
 				self.high_ram[a as usize] = val;

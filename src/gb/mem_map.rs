@@ -79,7 +79,7 @@ pub enum Addr{
 	ExternalRam(u16),
 	InternalRam(u16),
 	SpriteRam(u16),
-	HardwareIO(u16),
+	HardwareIO(u8),
 	HighRam(u16),
 	InterruptEnable,
 
@@ -109,9 +109,8 @@ pub fn map_addr(addr: u16) -> Addr {
 		SPRITE_RAM_START ... SPRITE_RAM_END
 			=> Addr::SpriteRam(addr - SPRITE_RAM_START),
 
-		// For IO, no offset is done so that it's easier to follow the docs in the gbio module
 		HARDWARE_IO_START ... HARDWARE_IO_END
-			=> Addr::HardwareIO(addr),
+			=> Addr::HardwareIO((addr - HARDWARE_IO_START) as u8),
 
 		HIGH_RAM_START ... HIGH_RAM_END
 			=> Addr::HighRam(addr - HIGH_RAM_START),
