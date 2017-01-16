@@ -21,6 +21,8 @@ pub struct Cpu {
 
     sp: u16,
     pub pc: u16,
+
+    interrupt_master_enable: bool,
 }
 
 // F register masks
@@ -58,6 +60,8 @@ impl Default for Cpu {
             sp: 0x4221,
 
             pc: INIT_ADDRESS,
+
+            interrupt_master_enable: true, // I think the starting value doesn't matter... maybe?
         }
 	}
 }
