@@ -44,6 +44,8 @@ impl Interconnect {
 				self.rom.read_rom(real_addr, self.io.boot_sequence())
 			},
 
+			Addr::HardwareIO(a) => self.io.read_byte(a),
+
 			Addr::HighRam(a) => self.high_ram[a as usize],
 
 			_ => {
