@@ -28,22 +28,33 @@ impl GBIO {
 
 	pub fn write_byte(&mut self, addr: u8, val: u8) {
 		match addr {
-			0x00 => {
-				self.joypad.write_joypad(val);
-			},
+			0x00 => self.joypad.write_joypad(val),
 
-			0x10 ... 0x26 => {
-				// Sound
-				println!("Write to SOUND");
-			},
+			//0x01 ... 0x03 => // Serial data transfer
 
-			0x50 => {
-				self.boot = val == 0;
-			},
+			//0x04 ... 0x07 => // Timer
+
+			0x10 ... 0x26 => println!("Write to SOUND"),
+
+			//0x40 ... 0x4B => // PPU
+
+			0x50 => self.boot = val == 0,
+
+			0x0F => self.interrupt.write_flags(val),
+			0xFF => self.interrupt.write_enable(val),
 
 			_ => {
-				panic!("Unimplemented IO Write {:?}", addr);
+				panic!("Unimplemented IO Write {:02X}", addr);
 			}
+		}
+	}
+
+	pub fn read_byte(&self, addr: u8) -> u8 {
+		match addr {
+			0x00 => self.joypad.read_joypad(),
+			0x0F => self.interrupt.read_flags(),
+			0xFF => self.interrupt.read_enable(),
+			_ => panic!("Unimplemented IO Read {:02X}", addr)
 		}
 	}
 
@@ -71,15 +82,7 @@ const INTERRUPT_SERIAL_MASK : u8 = 0b0000_1000;
 const INTERRUPT_JOYPAD_MASK : u8 = 0b0001_0000;
 
 impl Interrupt {
-	pub fn write_interrupt(&mut self, addr: u8, val: u8) {
-		match addr {
-			0x0F => self.write_flag(val),
-			0xFF => self.write_enable(val),
-			_ => panic!("Invalid interrupt write") //This should never happen
-		}
-	}
-
-	fn write_flag(&mut self, val: u8) {
+	pub fn write_flags(&mut self, val: u8) {
 		if (val & INTERRUPT_VBLANK_MASK) != 0 {
 			self.flagged_vblank = true;
 		} else {
@@ -111,7 +114,7 @@ impl Interrupt {
 		}
 	}
 
-	fn write_enable(&mut self, val: u8) {
+	pub fn write_enable(&mut self, val: u8) {
 		if (val & INTERRUPT_VBLANK_MASK) != 0 {
 			self.enabled_vblank = true;
 		} else {
@@ -141,6 +144,24 @@ impl Interrupt {
 		} else {
 			self.enabled_joypad = false;
 		}
+	}
+
+	pub fn read_flags(&self) -> u8 {
+		0 +
+		if self.flagged_vblank  { INTERRUPT_VBLANK_MASK } else { 0 } +
+		if self.flagged_lcdstat { INTERRUPT_LCDSTAT_MASK } else { 0 } +
+		if self.flagged_timer   { INTERRUPT_TIMER_MASK } else { 0 } +
+		if self.flagged_serial  { INTERRUPT_SERIAL_MASK } else { 0 } +
+		if self.flagged_joypad  { INTERRUPT_JOYPAD_MASK } else { 0 }
+	}
+
+	pub fn read_enable(&self) -> u8 {
+		0 +
+		if self.enabled_vblank  { INTERRUPT_VBLANK_MASK } else { 0 } +
+		if self.enabled_lcdstat { INTERRUPT_LCDSTAT_MASK } else { 0 } +
+		if self.enabled_timer   { INTERRUPT_TIMER_MASK } else { 0 } +
+		if self.enabled_serial  { INTERRUPT_SERIAL_MASK } else { 0 } +
+		if self.enabled_joypad  { INTERRUPT_JOYPAD_MASK } else { 0 }
 	}
 }
 
