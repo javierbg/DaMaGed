@@ -1,4 +1,4 @@
-use super::mem_map;
+use mem_map;
 
 const BOOT_ROM_SIZE: u16 = 256;
 

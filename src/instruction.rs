@@ -1,6 +1,8 @@
-use super::super::Interconnect;
+use interconnect::Interconnect;
 use std::fmt;
 use std::iter;
+
+use cpu::{Reg8, Reg16};
 
 // Whole data of an instruction. Because it holds the original bytes, it can be
 // dissassembled.
@@ -155,55 +157,6 @@ pub enum ExInstruction {
 	PrefixCB, // Used to denote that a CB prefixed instruction is next, not a full instruction (used internally only)
 
 	Unimplemented // For debug purposes only
-}
-
-
-// 8-bit register
-#[derive(Debug, Copy, Clone)]
-pub enum Reg8 {
-	A, B, C, D, E, F, H, L,
-	//Memory cell pointed by...
-	MemBC, MemDE, MemHL, MemSP,
-	//Memory cell pointed by 0xFF00 + ...
-	MemC,
-	//Memory cell pointed by literal value...
-	Mem(u16),
-	//Memory cell at zero page (high ram) pointed by literal value of...
-	MemH(u8)
-}
-
-impl fmt::Display for Reg8 {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let s: String = match *self {
-			Reg8::MemBC => "(bc)".into(),
-			Reg8::MemDE => "(de)".into(),
-			Reg8::MemHL => "(hl)".into(),
-			Reg8::MemSP => "(sp)".into(),
-			Reg8::MemC  => "(0ff00h+c)".into(),
-			Reg8::Mem(a) => format!("(0{:04x}h)", a),
-			Reg8::MemH(a) => format!("(0ff00h+0{:02x}h)", a),
-			_ => format!("{:?}", *self)
-		};
-		write!(f, "{}", s.to_lowercase())
-	}
-}
-
-// 16-bit register
-#[derive(Debug, Copy, Clone)]
-pub enum Reg16 {
-	BC, DE, HL, SP, PC
-}
-
-impl fmt::Display for Reg16 {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let s: String = format!("{:?}", * self).to_lowercase();
-		write!(f, "{}", s)
-	}
-}
-
-pub enum Register {
-	Register8(Reg8),
-	Register16(Reg16),
 }
 
 // Jump conditions

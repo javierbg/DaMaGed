@@ -1,6 +1,6 @@
-use super::super::Interconnect;
-use super::instruction;
-use super::instruction::ExInstruction;
+use interconnect::Interconnect;
+use instruction;
+use instruction::ExInstruction;
 
 use std::fmt;
 
@@ -130,16 +130,16 @@ impl Cpu {
 
             ExInstruction::LoadHLPredec => {
                 let a: u8 = self.a;
-                let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_sub(1u16);
-                self.load_16bit_register(instruction::Reg16::HL, hl);
-                self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
+                let hl = self.read_16bit_register(Reg16::HL).wrapping_sub(1u16);
+                self.load_16bit_register(Reg16::HL, hl);
+                self.load_8bit_register(itct, Reg8::MemHL, a);
             },
 
             ExInstruction::LoadHLPostinc => {
                 let a: u8 = self.a;
-                self.load_8bit_register(itct, instruction::Reg8::MemHL, a);
-                let hl = self.read_16bit_register(instruction::Reg16::HL).wrapping_add(1u16);
-                self.load_16bit_register(instruction::Reg16::HL, hl);
+                self.load_8bit_register(itct, Reg8::MemHL, a);
+                let hl = self.read_16bit_register(Reg16::HL).wrapping_add(1u16);
+                self.load_16bit_register(Reg16::HL, hl);
             },
 
             ExInstruction::Xor(r) => {
@@ -251,12 +251,12 @@ impl Cpu {
             },
 
             ExInstruction::Call(a) => {
-                self.push(itct, instruction::Reg16::PC);
+                self.push(itct, Reg16::PC);
                 self.pc = a;
             },
 
             ExInstruction::Return => {
-                self.pop(itct, instruction::Reg16::PC);
+                self.pop(itct, Reg16::PC);
             },
 
             ExInstruction::Pop(r) => {
@@ -288,83 +288,83 @@ impl Cpu {
         }
     }
 
-    pub fn read_8bit_register(&self, interconnect: &Interconnect, reg: instruction::Reg8) -> u8 {
+    pub fn read_8bit_register(&self, interconnect: &Interconnect, reg: Reg8) -> u8 {
         match reg {
-            instruction::Reg8::A => self.a,
-            instruction::Reg8::B => self.b,
-            instruction::Reg8::C => self.c,
-            instruction::Reg8::D => self.d,
-            instruction::Reg8::E => self.e,
-            instruction::Reg8::H => self.h,
-            instruction::Reg8::L => self.l,
-            instruction::Reg8::F => self.f,
+            Reg8::A => self.a,
+            Reg8::B => self.b,
+            Reg8::C => self.c,
+            Reg8::D => self.d,
+            Reg8::E => self.e,
+            Reg8::H => self.h,
+            Reg8::L => self.l,
+            Reg8::F => self.f,
 
-            instruction::Reg8::MemBC => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::BC)),
-            instruction::Reg8::MemDE => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::DE)),
-            instruction::Reg8::MemHL => interconnect.read_byte(self.read_16bit_register(instruction::Reg16::HL)),
-            instruction::Reg8::MemSP => interconnect.read_byte(self.sp),
+            Reg8::MemBC => interconnect.read_byte(self.read_16bit_register(Reg16::BC)),
+            Reg8::MemDE => interconnect.read_byte(self.read_16bit_register(Reg16::DE)),
+            Reg8::MemHL => interconnect.read_byte(self.read_16bit_register(Reg16::HL)),
+            Reg8::MemSP => interconnect.read_byte(self.sp),
 
-            instruction::Reg8::MemC  => interconnect.read_byte(0xFF00u16 + (self.c as u16)),
+            Reg8::MemC  => interconnect.read_byte(0xFF00u16 + (self.c as u16)),
 
-            instruction::Reg8::Mem(addr) => interconnect.read_byte(addr),
-            instruction::Reg8::MemH(addr) => interconnect.read_byte(0xFF00u16 + (addr as u16)),
+            Reg8::Mem(addr) => interconnect.read_byte(addr),
+            Reg8::MemH(addr) => interconnect.read_byte(0xFF00u16 + (addr as u16)),
         }
     }
 
-    fn load_8bit_register(&mut self, interconnect: &mut Interconnect, reg: instruction::Reg8, val: u8) {
+    fn load_8bit_register(&mut self, interconnect: &mut Interconnect, reg: Reg8, val: u8) {
         match reg {
-            instruction::Reg8::A => self.a = val,
-            instruction::Reg8::B => self.b = val,
-            instruction::Reg8::C => self.c = val,
-            instruction::Reg8::D => self.d = val,
-            instruction::Reg8::E => self.e = val,
-            instruction::Reg8::H => self.h = val,
-            instruction::Reg8::L => self.l = val,
-            instruction::Reg8::F => self.f = val,
+            Reg8::A => self.a = val,
+            Reg8::B => self.b = val,
+            Reg8::C => self.c = val,
+            Reg8::D => self.d = val,
+            Reg8::E => self.e = val,
+            Reg8::H => self.h = val,
+            Reg8::L => self.l = val,
+            Reg8::F => self.f = val,
 
-            instruction::Reg8::MemBC => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::BC), val),
-            instruction::Reg8::MemDE => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::DE), val),
-            instruction::Reg8::MemHL => interconnect.write_byte(self.read_16bit_register(instruction::Reg16::HL), val),
-            instruction::Reg8::MemSP => interconnect.write_byte(self.sp, val),
+            Reg8::MemBC => interconnect.write_byte(self.read_16bit_register(Reg16::BC), val),
+            Reg8::MemDE => interconnect.write_byte(self.read_16bit_register(Reg16::DE), val),
+            Reg8::MemHL => interconnect.write_byte(self.read_16bit_register(Reg16::HL), val),
+            Reg8::MemSP => interconnect.write_byte(self.sp, val),
 
-            instruction::Reg8::MemC  => interconnect.write_byte(0xFF00u16 + (self.c as u16), val),
+            Reg8::MemC  => interconnect.write_byte(0xFF00u16 + (self.c as u16), val),
 
-            instruction::Reg8::Mem(addr) => interconnect.write_byte(addr, val),
-            instruction::Reg8::MemH(addr) => interconnect.write_byte(0xFF00u16 + (addr as u16), val),
+            Reg8::Mem(addr) => interconnect.write_byte(addr, val),
+            Reg8::MemH(addr) => interconnect.write_byte(0xFF00u16 + (addr as u16), val),
         };
     }
 
-    pub fn read_16bit_register(&self, reg: instruction::Reg16) -> u16 {
+    pub fn read_16bit_register(&self, reg: Reg16) -> u16 {
         match reg {
-            instruction::Reg16::BC => ((self.b as u16) << 8) + (self.c as u16),
-            instruction::Reg16::DE => ((self.d as u16) << 8) + (self.e as u16),
-            instruction::Reg16::HL => ((self.h as u16) << 8) + (self.l as u16),
-            instruction::Reg16::SP => self.sp,
-            instruction::Reg16::PC => self.pc,
+            Reg16::BC => ((self.b as u16) << 8) + (self.c as u16),
+            Reg16::DE => ((self.d as u16) << 8) + (self.e as u16),
+            Reg16::HL => ((self.h as u16) << 8) + (self.l as u16),
+            Reg16::SP => self.sp,
+            Reg16::PC => self.pc,
         }
     }
 
-    fn load_16bit_register(&mut self, reg: instruction::Reg16, val: u16) {
+    fn load_16bit_register(&mut self, reg: Reg16, val: u16) {
         let msb = (val >> 8) as u8;
         let lsb = val as u8;
 
         match reg {
-            instruction::Reg16::BC => {
+            Reg16::BC => {
                 self.b = msb;
                 self.c = lsb;
             },
-            instruction::Reg16::DE => {
+            Reg16::DE => {
                 self.d = msb;
                 self.e = lsb;
             },
-            instruction::Reg16::HL => {
+            Reg16::HL => {
                 self.h = msb;
                 self.l = lsb;
             },
-            instruction::Reg16::SP => {
+            Reg16::SP => {
                 self.sp = val;
             },
-            instruction::Reg16::PC => {
+            Reg16::PC => {
                 self.pc = val;
             }
         };
@@ -408,30 +408,30 @@ impl Cpu {
     }
 
     // Push a 16 bit value to the stack
-    fn push(&mut self, itct: &mut Interconnect, reg: instruction::Reg16) {
+    fn push(&mut self, itct: &mut Interconnect, reg: Reg16) {
         let hi_addr = self.sp.wrapping_sub(1);
         let lo_addr = self.sp.wrapping_sub(2);
 
         match reg {
-            instruction::Reg16::BC => {
+            Reg16::BC => {
                 itct.write_byte(hi_addr, self.b);
                 itct.write_byte(lo_addr, self.c);
             },
-            instruction::Reg16::DE => {
+            Reg16::DE => {
                 itct.write_byte(hi_addr, self.d);
                 itct.write_byte(lo_addr, self.e);
             },
-            instruction::Reg16::HL => {
+            Reg16::HL => {
                 itct.write_byte(hi_addr, self.h);
                 itct.write_byte(lo_addr, self.l);
             },
-            instruction::Reg16::SP => {
+            Reg16::SP => {
                 let hi_byte = (self.sp >> 8) as u8;
                 let lo_byte = self.sp as u8;
                 itct.write_byte(hi_addr, hi_byte);
                 itct.write_byte(lo_addr, lo_byte);
             },
-            instruction::Reg16::PC => { // For the sake of completion? But maybe I sould just use _
+            Reg16::PC => { // For the sake of completion? But maybe I sould just use _
                 let hi_byte = (self.pc >> 8) as u8;
                 let lo_byte = self.pc as u8;
                 itct.write_byte(hi_addr, hi_byte);
@@ -443,7 +443,7 @@ impl Cpu {
     }
 
     // Pop a 16 bit value from the stack
-    fn pop(&mut self, itct: &mut Interconnect, reg: instruction::Reg16) {
+    fn pop(&mut self, itct: &mut Interconnect, reg: Reg16) {
         let lo_addr = self.sp;
         let hi_addr = self.sp.wrapping_add(1);
 
@@ -451,19 +451,19 @@ impl Cpu {
         let hi_byte = itct.read_byte(hi_addr);
 
         match reg {
-            instruction::Reg16::BC => {
+            Reg16::BC => {
                 self.b = hi_byte;
                 self.c = lo_byte;
             },
-            instruction::Reg16::DE => {
+            Reg16::DE => {
                 self.d = hi_byte;
                 self.e = lo_byte;
             },
-            instruction::Reg16::HL => {
+            Reg16::HL => {
                 self.h = hi_byte;
                 self.l = lo_byte;
             },
-            instruction::Reg16::PC => {
+            Reg16::PC => {
                 self.pc = ((hi_byte as u16) << 8) + (lo_byte as u16);
             },
             _ => {},
@@ -510,4 +510,53 @@ impl Cpu {
 
         self.add_update_flags(a, negative_b)
     }
+}
+
+// 8-bit register
+#[derive(Debug, Copy, Clone)]
+pub enum Reg8 {
+	A, B, C, D, E, F, H, L,
+	//Memory cell pointed by...
+	MemBC, MemDE, MemHL, MemSP,
+	//Memory cell pointed by 0xFF00 + ...
+	MemC,
+	//Memory cell pointed by literal value...
+	Mem(u16),
+	//Memory cell at zero page (high ram) pointed by literal value of...
+	MemH(u8)
+}
+
+impl fmt::Display for Reg8 {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let s: String = match *self {
+			Reg8::MemBC => "(bc)".into(),
+			Reg8::MemDE => "(de)".into(),
+			Reg8::MemHL => "(hl)".into(),
+			Reg8::MemSP => "(sp)".into(),
+			Reg8::MemC  => "(0ff00h+c)".into(),
+			Reg8::Mem(a) => format!("(0{:04x}h)", a),
+			Reg8::MemH(a) => format!("(0ff00h+0{:02x}h)", a),
+			_ => format!("{:?}", *self)
+		};
+		write!(f, "{}", s.to_lowercase())
+	}
+}
+
+// 16-bit register
+#[derive(Debug, Copy, Clone)]
+pub enum Reg16 {
+	BC, DE, HL, SP, PC
+}
+
+impl fmt::Display for Reg16 {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		let s: String = format!("{:?}", * self).to_lowercase();
+		write!(f, "{}", s)
+	}
+}
+
+#[derive(Clone, Copy)]
+pub enum Register {
+	Register8(Reg8),
+	Register16(Reg16),
 }

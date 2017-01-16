@@ -1,6 +1,8 @@
 use std::fmt;
-use super::{mem_map, rom, gbio};
-use super::mem_map::Addr;
+use mem_map;
+use mem_map::Addr;
+use rom;
+use io;
 
 #[allow(dead_code)]
 pub struct Interconnect{
@@ -12,7 +14,7 @@ pub struct Interconnect{
 
 	sprite_ram: [u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
 
-	io: gbio::GBIO,
+	io: io::GBIO,
 
 	high_ram: [u8 ; mem_map::HIGH_RAM_LENGTH as usize]
 }
@@ -28,7 +30,7 @@ impl Interconnect {
 
 			sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
 
-			io: gbio::GBIO::new(),
+			io: io::GBIO::new(),
 
 			high_ram: [0u8 ; mem_map::HIGH_RAM_LENGTH as usize]
 		}

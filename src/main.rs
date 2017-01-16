@@ -1,6 +1,16 @@
-extern crate argparse;
+#![allow(dead_code)]
 
+extern crate argparse;
+extern crate minifb;
+
+mod emulator;
 mod gb;
+mod cpu;
+mod instruction;
+mod interconnect;
+mod io;
+mod mem_map;
+mod rom;
 
 use std::fs;
 use std::io::Read;
@@ -36,9 +46,9 @@ fn main() {
     println!("Boot ROM size: {} bytes", boot_rom_buffer.len());
     println!("Cart ROM size: {} Kbytes", cart_rom_buffer.len());
 
-    let mut gb = gb::GB::new(boot_rom_buffer, cart_rom_buffer);
+    let mut emul = emulator::Emulator::new(boot_rom_buffer, cart_rom_buffer, debug);
 
-    gb.run(debug);
+    emul.run();
 }
 
 fn read_rom<P: AsRef<Path>>(path: P) -> Box<[u8]> {

@@ -7,3 +7,4 @@ license = "GPL-3.0"
 [dependencies]
 
 argparse = "*"
+minifb = "0.9.0" # Window Manager
