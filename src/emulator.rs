@@ -138,14 +138,15 @@ impl Emulator {
 				match comm {
 					DebugCommand::Quit => break,
 					DebugCommand::LastCommand => {
-						/*if let Some(last_comm) = self.last_command {
+						if let Some(last_comm) = self.last_command {
 							self.execute_debug_command(last_comm);
-						}*/
+						}
 					},
-					_ => self.execute_debug_command(comm),
+					_ => {
+						self.last_command = Some(comm);
+						self.execute_debug_command(comm);
+					}
 				}
-
-				self.last_command = Some(comm);
 			}
 
 			else {
@@ -158,7 +159,7 @@ impl Emulator {
 		let chunks = input.split_whitespace().collect::<Vec<&str>>();
 
 		if chunks.len() == 0 {
-			return None;
+			return Some(DebugCommand::LastCommand);
 		}
 
 		match chunks[0] {
@@ -235,8 +236,6 @@ impl Emulator {
 			}
 
 			"s" => Some(DebugCommand::Step),
-
-			"" => Some(DebugCommand::LastCommand),
 
 			_ => None
 		}
