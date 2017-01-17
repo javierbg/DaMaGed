@@ -1,8 +1,13 @@
 use mem_map;
+use cpu::Interrupt;
 
 const N_SPRITES: usize = (mem_map::SPRITE_RAM_LENGTH as usize) / 4;
+const SCREEN_HEIGHT: usize = 144;
+const SCREEN_WIDTH : usize = 160;
 
 pub struct PPU {
+	image: [[Color ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
+
 	sprite_ram: [Sprite ; N_SPRITES],
 	pub vram: [u8 ; mem_map::VRAM_LENGTH as usize],
 
@@ -21,7 +26,8 @@ pub struct PPU {
 	scroll_y: u8,
 	scroll_x: u8,
 
-	lcdc_y_coordinate: u8,
+	lcdc_y_coordinate: usize,
+	//lcdc_x_coordinate: usize, // This is not really accesible, it's only used internally
 	ly_compare: u8,
 
 	background_palette: [Color ; 4],
@@ -34,7 +40,8 @@ pub struct PPU {
 impl Default for PPU {
 	fn default() -> PPU {
 		PPU {
-			//sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+			image: [[Color::White ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
+
 			sprite_ram: [Sprite::default() ; N_SPRITES],
 			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
 
@@ -51,6 +58,7 @@ impl Default for PPU {
 			scroll_x: 0,
 
 			lcdc_y_coordinate: 0,
+			//lcdc_x_coordinate: 0,
 			ly_compare: 0,
 
 			background_palette: [Color::White ; 4],
@@ -97,7 +105,7 @@ impl PPU {
 		match addr {
 			0x42 => self.scroll_y,
 			0x43 => self.scroll_x,
-			0x44 => self.lcdc_y_coordinate,
+			0x44 => self.lcdc_y_coordinate as u8,
 			0x45 => self.ly_compare,
 
 			0x47 => Self::read_palette(&self.background_palette),
@@ -189,15 +197,37 @@ impl PPU {
 	}
 
 	fn read_lcd_control(&self) -> u8 {
-		0 +
-		if self.lcd_display_enabled { LCDC_LCD_DISPLAY_ENABLE_MASK } else {0} +
-		if self.window_tile_map_address { LCDC_WINDOW_TILE_MAP_ADDRESS_MASK } else {0} +
-		if self.window_enabled { LCDC_WINDOW_DISPLAY_ENABLE_MASK } else {0} +
-		if self.background_window_tile_data_address { LCDC_BG_WINDOW_TILE_DATA_ADDRESS_MASK } else {0} +
-		if self.background_tile_map_address { LCDC_BG_TILE_MAP_ADDRESS_MASK } else {0} +
-		if self.sprite_size { LCDC_SPRITE_SIZE_MASK } else {0} +
-		if self.sprites_enabled { LCDC_SPRITE_DISPLAY_ENABLE_MASK } else {0} +
+		0 |
+		if self.lcd_display_enabled { LCDC_LCD_DISPLAY_ENABLE_MASK } else {0}                          |
+		if self.window_tile_map_address { LCDC_WINDOW_TILE_MAP_ADDRESS_MASK } else {0}                 |
+		if self.window_enabled { LCDC_WINDOW_DISPLAY_ENABLE_MASK } else {0}                            |
+		if self.background_window_tile_data_address { LCDC_BG_WINDOW_TILE_DATA_ADDRESS_MASK } else {0} |
+		if self.background_tile_map_address { LCDC_BG_TILE_MAP_ADDRESS_MASK } else {0}                 |
+		if self.sprite_size { LCDC_SPRITE_SIZE_MASK } else {0}                                         |
+		if self.sprites_enabled { LCDC_SPRITE_DISPLAY_ENABLE_MASK } else {0}                           |
 		if self.background_enabled { LCDC_BG_DISPLAY_ENABLE_MASK } else {0}
+	}
+
+	pub fn build_image(&mut self) -> Option<Interrupt> {
+		if self.lcdc_y_coordinate >= SCREEN_HEIGHT{
+			return None;
+		}
+
+		let ly_compare = self.ly_compare as usize;
+
+		for pix_y in self.lcdc_y_coordinate..SCREEN_HEIGHT {
+			if pix_y == ly_compare {
+				// TODO: update STAT register (FF41)
+				self.lcdc_y_coordinate = pix_y;
+				return Some(Interrupt::LCDSTAT);
+			}
+
+			for pix_x in 0..SCREEN_WIDTH {
+				//computer pls draw, ty :)
+			}
+		}
+
+		return Some(Interrupt::VBlank);
 	}
 }
 

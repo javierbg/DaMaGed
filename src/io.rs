@@ -66,24 +66,32 @@ impl GBIO {
 		// This implementation is temporary. Once interrupts are properly handled some of these
 		// booleans will probably be changed to a specific check. It's here for the sake of
 		// modeling.
-		if self.interrupt.enabled_vblank {
-			self.interrupt.enabled_vblank = false;
+		if let Some(interrupt) = self.ppu.build_image() {
+			match interrupt {
+				Interrupt::VBlank  => self.interrupt.flagged_vblank = true,
+				Interrupt::LCDSTAT => self.interrupt.flagged_lcdstat = true,
+				_ => {}
+			}
+		}
+
+		if self.interrupt.enabled_vblank && self.interrupt.flagged_vblank {
+			self.interrupt.flagged_vblank = false;
 			Some(Interrupt::VBlank)
 		}
-		else if self.interrupt.enabled_lcdstat {
-			self.interrupt.enabled_lcdstat = false;
+		else if self.interrupt.enabled_lcdstat && self.interrupt.flagged_lcdstat {
+			self.interrupt.flagged_lcdstat = false;
 			Some(Interrupt::LCDSTAT)
 		}
-		else if self.interrupt.enabled_timer {
-			self.interrupt.enabled_timer = false;
+		else if self.interrupt.enabled_timer && self.interrupt.flagged_timer {
+			self.interrupt.flagged_timer = false;
 			Some(Interrupt::Timer)
 		}
-		else if self.interrupt.enabled_serial {
-			self.interrupt.enabled_serial = false;
+		else if self.interrupt.enabled_serial && self.interrupt.flagged_serial {
+			self.interrupt.flagged_serial = false;
 			Some(Interrupt::Serial)
 		}
-		else if self.interrupt.enabled_joypad {
-			self.interrupt.enabled_joypad = false;
+		else if self.interrupt.enabled_joypad && self.interrupt.flagged_joypad {
+			self.interrupt.flagged_joypad = false;
 			Some(Interrupt::Joypad)
 		}
 		else {
@@ -179,20 +187,20 @@ impl InterruptRegs {
 	}
 
 	pub fn read_flags(&self) -> u8 {
-		0 +
-		if self.flagged_vblank  { INTERRUPT_VBLANK_MASK } else { 0 } +
-		if self.flagged_lcdstat { INTERRUPT_LCDSTAT_MASK } else { 0 } +
-		if self.flagged_timer   { INTERRUPT_TIMER_MASK } else { 0 } +
-		if self.flagged_serial  { INTERRUPT_SERIAL_MASK } else { 0 } +
+		0 |
+		if self.flagged_vblank  { INTERRUPT_VBLANK_MASK } else { 0 }  |
+		if self.flagged_lcdstat { INTERRUPT_LCDSTAT_MASK } else { 0 } |
+		if self.flagged_timer   { INTERRUPT_TIMER_MASK } else { 0 }   |
+		if self.flagged_serial  { INTERRUPT_SERIAL_MASK } else { 0 }  |
 		if self.flagged_joypad  { INTERRUPT_JOYPAD_MASK } else { 0 }
 	}
 
 	pub fn read_enable(&self) -> u8 {
-		0 +
-		if self.enabled_vblank  { INTERRUPT_VBLANK_MASK } else { 0 } +
-		if self.enabled_lcdstat { INTERRUPT_LCDSTAT_MASK } else { 0 } +
-		if self.enabled_timer   { INTERRUPT_TIMER_MASK } else { 0 } +
-		if self.enabled_serial  { INTERRUPT_SERIAL_MASK } else { 0 } +
+		0 |
+		if self.enabled_vblank  { INTERRUPT_VBLANK_MASK } else { 0 }  |
+		if self.enabled_lcdstat { INTERRUPT_LCDSTAT_MASK } else { 0 } |
+		if self.enabled_timer   { INTERRUPT_TIMER_MASK } else { 0 }   |
+		if self.enabled_serial  { INTERRUPT_SERIAL_MASK } else { 0 }  |
 		if self.enabled_joypad  { INTERRUPT_JOYPAD_MASK } else { 0 }
 	}
 }
