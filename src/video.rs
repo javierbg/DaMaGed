@@ -1,36 +1,9 @@
 use mem_map;
 
-// The 4 displayed colors on the Game Boy
-#[derive(Copy, Clone)]
-enum Color {
-	White, LightGray, DarkGray, Black
-	// Well, more like green, other green, more green and greener
-	// but you get the idea
-}
-
-impl Color {
-	fn from_bits(val: u8) -> Color {
-		match val {
-			0x00 => Color::White,
-			0x01 => Color::LightGray,
-			0x02 => Color::DarkGray,
-			0x03 => Color::Black,
-			_ => panic!("Invalid color {:02X}", val)
-		}
-	}
-
-	fn to_bits(col: Color) -> u8 {
-		match col {
-			Color::White     => 0b00,
-			Color::LightGray => 0b01,
-			Color::DarkGray  => 0b10,
-			Color::Black     => 0b11,
-		}
-	}
-}
+const N_SPRITES: usize = (mem_map::SPRITE_RAM_LENGTH as usize) / 4;
 
 pub struct PPU {
-	pub sprite_ram: [u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+	sprite_ram: [Sprite ; N_SPRITES],
 	pub vram: [u8 ; mem_map::VRAM_LENGTH as usize],
 
 	// LCD Control
@@ -52,7 +25,7 @@ pub struct PPU {
 	ly_compare: u8,
 
 	background_palette: [Color ; 4],
-	object_palettes: [[Color ; 4] ; 2], // Color 0 in each palette won't really be used
+	object_palettes: [[Color ; 4] ; 2], // Color 0 in each of these two won't really be used (it's always transparency)
 
 	window_y_position: u8,
 	window_x_position: u8,
@@ -61,7 +34,8 @@ pub struct PPU {
 impl Default for PPU {
 	fn default() -> PPU {
 		PPU {
-			sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+			//sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+			sprite_ram: [Sprite::default() ; N_SPRITES],
 			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
 
 			lcd_display_enabled: false,
@@ -138,6 +112,47 @@ impl PPU {
 		}
 	}
 
+	pub fn write_sprite_entry(&mut self, addr: u8, val: u8) {
+		let sprite_index = (addr >> 2) as usize;
+		let sprite_byte = addr & 0b11;
+
+		let mut sprite = self.sprite_ram[sprite_index];
+
+		match sprite_byte {
+			0b00 => sprite.position_y = val,
+			0b01 => sprite.position_x = val,
+			0b10 => sprite.tile_number = val,
+			0b11 => {
+				sprite.priority = if (val & 0b1000_0000) != 0 { true } else { false };
+				sprite.flip_y = if (val & 0b0100_0000) != 0 { true } else { false };
+				sprite.flip_x = if (val & 0b0010_0000) != 0 { true } else { false };
+				sprite.palette = if (val & 0b1000_0000) != 0 { 1 } else { 0 };
+			}
+
+			_ => {}
+		}
+	}
+
+	pub fn read_sprite_entry(&self, addr: u8) -> u8 {
+		let sprite_index = (addr >> 2) as usize;
+		let sprite_byte = addr & 0b11;
+
+		let sprite = self.sprite_ram[sprite_index];
+
+		match sprite_byte {
+			0b00 => sprite.position_y,
+			0b01 => sprite.position_x,
+			0b10 => sprite.tile_number,
+			0b11 => 0 +
+				if sprite.priority { SPRITE_PRIORITY_MASK } else { 0 } +
+				if sprite.flip_y { SPRITE_FLIP_Y_MASK } else { 0 } +
+				if sprite.flip_x { SPRITE_FLIP_X_MASK } else { 0 } +
+				(sprite.palette as u8),
+
+			_ => panic!("It's impossible that this happened, as there's no fifth byte to see"),
+		}
+	}
+
 	fn read_palette(palette: &[Color ; 4]) -> u8 {
 		0 +
 		 Color::to_bits(palette[0]) +
@@ -185,3 +200,50 @@ impl PPU {
 		if self.background_enabled { LCDC_BG_DISPLAY_ENABLE_MASK } else {0}
 	}
 }
+
+// The 4 displayed colors on the Game Boy
+#[derive(Copy, Clone)]
+enum Color {
+	White, LightGray, DarkGray, Black
+	// Well, more like green, other green, more green and greener
+	// but you get the idea
+}
+
+impl Color {
+	fn from_bits(val: u8) -> Color {
+		match val {
+			0x00 => Color::White,
+			0x01 => Color::LightGray,
+			0x02 => Color::DarkGray,
+			0x03 => Color::Black,
+			_ => panic!("Invalid color {:02X}", val)
+		}
+	}
+
+	fn to_bits(col: Color) -> u8 {
+		match col {
+			Color::White     => 0b00,
+			Color::LightGray => 0b01,
+			Color::DarkGray  => 0b10,
+			Color::Black     => 0b11,
+		}
+	}
+}
+
+#[derive(Default, Copy, Clone)]
+struct Sprite {
+	position_y: u8,
+	position_x: u8,
+
+	tile_number: u8,
+
+	priority: bool,
+	flip_y: bool,
+	flip_x: bool,
+	palette: usize, // usize type because it will be used to index the sprite palettes
+}
+
+const SPRITE_PRIORITY_MASK : u8 = 0b1000_0000;
+const SPRITE_FLIP_Y_MASK   : u8 = 0b0100_0000;
+const SPRITE_FLIP_X_MASK   : u8 = 0b0010_0000;
+const SPRITE_PALETTE_MASK  : u8 = 0b0001_0000;

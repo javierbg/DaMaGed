@@ -78,7 +78,7 @@ pub enum Addr{
 	VRam(u16),
 	ExternalRam(u16),
 	InternalRam(u16),
-	SpriteRam(u16),
+	SpriteRam(u8),
 	HardwareIO(u8),
 	HighRam(u16),
 	InterruptEnable,
@@ -107,7 +107,7 @@ pub fn map_addr(addr: u16) -> Addr {
 			=> Addr::InternalRam(addr - ECHO_INTERNAL_RAM_START),
 
 		SPRITE_RAM_START ... SPRITE_RAM_END
-			=> Addr::SpriteRam(addr - SPRITE_RAM_START),
+			=> Addr::SpriteRam((addr - SPRITE_RAM_START) as u8),
 
 		HARDWARE_IO_START ... HARDWARE_IO_END
 			=> Addr::HardwareIO((addr - HARDWARE_IO_START) as u8),

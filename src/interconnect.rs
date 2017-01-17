@@ -36,6 +36,7 @@ impl Interconnect {
 				self.rom.read_rom(real_addr, self.io.boot_sequence())
 			},
 
+			Addr::SpriteRam(a) => self.io.ppu.read_sprite_entry(a),
 			Addr::HardwareIO(a) => self.io.read_byte(a),
 
 			Addr::HighRam(a) => self.high_ram[a as usize],
@@ -55,9 +56,7 @@ impl Interconnect {
 			Addr::VRam(a) => {
 				self.io.ppu.vram[a as usize] = val;
 			},
-			Addr::SpriteRam(a) => {
-				self.io.ppu.sprite_ram[a as usize] = val;
-			},
+			Addr::SpriteRam(a) => self.io.ppu.write_sprite_entry(a, val),
 			Addr::HardwareIO(a) => self.io.write_byte(a, val),
 			Addr::HighRam(a) => {
 				self.high_ram[a as usize] = val;
