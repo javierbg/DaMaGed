@@ -11,6 +11,7 @@ mod interconnect;
 mod io;
 mod mem_map;
 mod rom;
+mod video;
 
 use std::fs;
 use std::io::Read;
