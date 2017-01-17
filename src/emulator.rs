@@ -3,6 +3,7 @@ use std::io;
 use std::io::Write;
 
 use cpu::{Register, Reg8, Reg16};
+use instruction::Instruction;
 use gb;
 
 enum ExecutionMode {
@@ -21,16 +22,6 @@ enum DebugCommand {
 	Step, // Execute just one CPU instruction
 	LastCommand, // Repeat last command
 }
-
-/*impl Clone for DebugCommand {
-	fn clone(&self) -> DebugCommand {
-		match self {
-			DebugCommand::PrintRegister(r) => DebugCommand::PrintRegister(r),
-			_ => *self
-		}
-	}
-}
-impl Copy for DebugCommand { }*/
 
 pub struct Emulator {
 	gb: gb::GB,
@@ -78,17 +69,21 @@ impl Emulator {
 			}
 
 			DebugCommand::Continue => {
+				let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
+				let inst = self.gb.step();
+				self.print_instruction(pc_of_inst, inst);
+				
 				while !self.breakpoints.contains(&self.gb.cpu.pc) {
 					let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
 					let inst = self.gb.step();
-					println!("  {:04X} : {}", pc_of_inst, inst);
+					self.print_instruction(pc_of_inst, inst);
 				}
 			}
 
 			DebugCommand::Step => {
 				let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
 				let inst = self.gb.step();
-				println!("  {:04X} : {}", pc_of_inst, inst);
+				self.print_instruction(pc_of_inst, inst);
 			}
 
 			DebugCommand::PrintRegister(r) => {
@@ -110,12 +105,17 @@ impl Emulator {
 
 			DebugCommand::Disassemble(n) => {
 				for (addr,inst) in self.gb.get_next_instructions(n) {
-					println!("  {:04X} : {}", addr, inst);
+					self.print_instruction(addr, inst);
 				}
 			}
 
 			_ => {}
 		}
+	}
+
+	fn print_instruction(&self, addr: u16, inst: Instruction) {
+		println!("{} {:04X} : {}", if self.breakpoints.contains(&addr) {"*"} else {" "},
+								   addr, inst);
 	}
 
 	fn run_debug_mode(&mut self) {
