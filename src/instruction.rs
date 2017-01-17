@@ -23,6 +23,7 @@ impl Instruction {
 			&ExInstruction::Load8Imm(dst, val) => format!("ld {},${:02x}",dst,val),
 			&ExInstruction::Load16(dst, src) => format!("ld {},{}",dst,src),
 			&ExInstruction::Load16Imm(dst, val) => format!("ld {},${:04x}",dst,val),
+			&ExInstruction::CompareImm(val) => format!("cp ${:02x}", val),
 			&ExInstruction::JrC(jr, cond) => format!("jr {},${}",cond,jr),
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::LoadHLPostinc => "ld (hl+),a".into(),

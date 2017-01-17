@@ -11,7 +11,7 @@ pub struct PPU {
 	sprite_ram: [Sprite ; N_SPRITES],
 	pub vram: [u8 ; mem_map::VRAM_LENGTH as usize],
 
-	// LCD Control
+	// LCD Control (FF40)
 	lcd_display_enabled: bool,
 	window_tile_map_address: bool,
 	window_enabled: bool,
@@ -21,14 +21,20 @@ pub struct PPU {
 	sprites_enabled: bool,
 	background_enabled: bool,
 
-	//TODO: LCDC status
+	// LCDC Status (FF41)
+	lyc_interrupt_enable: bool,
+	mode2_oam_interrupt_enable: bool,
+	mode1_vblank_interrupt_enable: bool,
+	mode0_hblank_interrupt_enable: bool,
+	// lyc == ly flag goes here
+	// TODO: mode flag (??)
 
 	scroll_y: u8,
 	scroll_x: u8,
 
 	lcdc_y_coordinate: usize,
 	//lcdc_x_coordinate: usize, // This is not really accesible, it's only used internally
-	ly_compare: u8,
+	ly_compare: usize,
 
 	background_palette: [Color ; 4],
 	object_palettes: [[Color ; 4] ; 2], // Color 0 in each of these two won't really be used (it's always transparency)
@@ -53,6 +59,11 @@ impl Default for PPU {
 			sprite_size: false, // false means 8px height, true means 16px height sprites
 			sprites_enabled: false,
 			background_enabled: false,
+
+			lyc_interrupt_enable: false,
+			mode2_oam_interrupt_enable: false,
+			mode1_vblank_interrupt_enable: false,
+			mode0_hblank_interrupt_enable: false,
 
 			scroll_y: 0,
 			scroll_x: 0,
@@ -86,8 +97,8 @@ impl PPU {
 			0x40 => self.write_lcd_control(val),
 			0x42 => self.scroll_y = val,
 			0x43 => self.scroll_x = val,
-
-			0x45 => self.ly_compare = val,
+			0x44 => self.lcdc_y_coordinate = 0,
+			0x45 => self.ly_compare = val as usize,
 
 			0x47 => Self::write_palette(&mut self.background_palette, val),
 
@@ -103,10 +114,11 @@ impl PPU {
 
 	pub fn read_ppu(&self, addr: u8) -> u8 {
 		match addr {
+			0x41 => self.read_lcdc_stat(),
 			0x42 => self.scroll_y,
 			0x43 => self.scroll_x,
 			0x44 => self.lcdc_y_coordinate as u8,
-			0x45 => self.ly_compare,
+			0x45 => self.ly_compare as u8,
 
 			0x47 => Self::read_palette(&self.background_palette),
 
@@ -208,6 +220,15 @@ impl PPU {
 		if self.background_enabled { LCDC_BG_DISPLAY_ENABLE_MASK } else {0}
 	}
 
+	fn read_lcdc_stat(&self) -> u8 {
+		0 |
+		if self.lyc_interrupt_enable                 { 0b0100_0000 } else { 0 } |
+		if self.mode2_oam_interrupt_enable           { 0b0010_0000 } else { 0 } |
+		if self.mode1_vblank_interrupt_enable        { 0b0001_0000 } else { 0 } |
+		if self.mode0_hblank_interrupt_enable        { 0b0000_1000 } else { 0 } |
+		if self.lcdc_y_coordinate == self.ly_compare { 0b0000_0100 } else { 0 }
+	}
+
 	pub fn build_image(&mut self) -> Option<Interrupt> {
 		if self.lcdc_y_coordinate >= SCREEN_HEIGHT{
 			return None;
@@ -216,7 +237,7 @@ impl PPU {
 		let ly_compare = self.ly_compare as usize;
 
 		for pix_y in self.lcdc_y_coordinate..SCREEN_HEIGHT {
-			if pix_y == ly_compare {
+			if self.lyc_interrupt_enable && (pix_y == ly_compare) {
 				// TODO: update STAT register (FF41)
 				self.lcdc_y_coordinate = pix_y;
 				return Some(Interrupt::LCDSTAT);
@@ -226,6 +247,7 @@ impl PPU {
 				//computer pls draw, ty :)
 			}
 		}
+		self.lcdc_y_coordinate = 144;
 
 		return Some(Interrupt::VBlank);
 	}
