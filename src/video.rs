@@ -1,3 +1,5 @@
+use mem_map;
+
 // The 4 displayed colors on the Game Boy
 #[derive(Copy, Clone)]
 enum Color {
@@ -28,6 +30,9 @@ impl Color {
 }
 
 pub struct PPU {
+	pub sprite_ram: [u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+	pub vram: [u8 ; mem_map::VRAM_LENGTH as usize],
+
 	// LCD Control
 	lcd_display_enabled: bool,
 	window_tile_map_address: bool,
@@ -56,6 +61,9 @@ pub struct PPU {
 impl Default for PPU {
 	fn default() -> PPU {
 		PPU {
+			sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
+			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
+
 			lcd_display_enabled: false,
 			window_tile_map_address: false,
 			window_enabled: false,

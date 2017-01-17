@@ -5,7 +5,7 @@ pub struct GBIO {
 	sound: Sound,
 	joypad: Joypad,
 	serial: SerialData,
-	ppu: video::PPU,
+	pub ppu: video::PPU,
 
 	boot: bool
 }

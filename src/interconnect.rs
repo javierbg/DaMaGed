@@ -8,11 +8,7 @@ use io;
 pub struct Interconnect{
 	rom: rom::ROM,
 
-	vram: [u8 ; mem_map::VRAM_LENGTH as usize],
-
 	internal_ram: [u8 ; mem_map::INTERNAL_RAM_LENGTH as usize],
-
-	sprite_ram: [u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
 
 	io: io::GBIO,
 
@@ -24,11 +20,7 @@ impl Interconnect {
 		Interconnect {
 			rom: rom::ROM::new(boot_rom, cart_rom),
 
-			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
-
 			internal_ram: [0u8 ; mem_map::INTERNAL_RAM_LENGTH as usize],
-
-			sprite_ram: [0u8 ; mem_map::SPRITE_RAM_LENGTH as usize],
 
 			io: io::GBIO::new(),
 
@@ -61,14 +53,14 @@ impl Interconnect {
 			Addr::Bank0(_) => self.rom.write_rom(real_addr, val),
 			Addr::BankN(_) => self.rom.write_rom(real_addr, val),
 			Addr::VRam(a) => {
-				println!("Writing {:02X} into VRAM address {:04X}", val, addr);
-				self.vram[a as usize] = val;
+				self.io.ppu.vram[a as usize] = val;
+			},
+			Addr::SpriteRam(a) => {
+				self.io.ppu.sprite_ram[a as usize] = val;
 			},
 			Addr::HardwareIO(a) => self.io.write_byte(a, val),
 			Addr::HighRam(a) => {
-				println!("Writing {:02X} into High Ram address {:04X}", val, addr);
 				self.high_ram[a as usize] = val;
-				println!("{}", self.high_ram[a as usize]);
 			},
 
 			_ => {
