@@ -70,19 +70,19 @@ impl Emulator {
 
 			DebugCommand::Continue => {
 				let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
-				let inst = self.gb.step();
+				let (inst, _) = self.gb.step();
 				self.print_instruction(pc_of_inst, inst);
-				
+
 				while !self.breakpoints.contains(&self.gb.cpu.pc) {
 					let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
-					let inst = self.gb.step();
+					let (inst, _) = self.gb.step();
 					self.print_instruction(pc_of_inst, inst);
 				}
 			}
 
 			DebugCommand::Step => {
 				let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
-				let inst = self.gb.step();
+				let (inst, _) = self.gb.step();
 				self.print_instruction(pc_of_inst, inst);
 			}
 

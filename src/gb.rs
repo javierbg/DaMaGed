@@ -19,7 +19,7 @@ impl GB {
 		}
 	}
 
-	pub fn step(&mut self) -> Instruction {
+	pub fn step(&mut self) -> (Instruction, u32) {
 		self.cpu.step(&mut self.interconnect)
 	}
 

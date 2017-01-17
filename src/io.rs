@@ -1,7 +1,8 @@
 use video;
+use cpu::Interrupt;
 
 pub struct GBIO {
-	interrupt: Interrupt,
+	pub interrupt: InterruptRegs,
 	sound: Sound,
 	joypad: Joypad,
 	serial: SerialData,
@@ -13,7 +14,7 @@ pub struct GBIO {
 impl GBIO {
 	pub fn new() -> GBIO {
 		GBIO {
-			interrupt: Interrupt::default(),
+			interrupt: InterruptRegs::default(),
 			sound: Sound{},
 			joypad: Joypad::default(),
 			serial: SerialData{},
@@ -61,10 +62,38 @@ impl GBIO {
 		}
 	}
 
+	pub fn advance_cycles(&mut self, n_cycles: u32) -> Option<Interrupt> {
+		// This implementation is temporary. Once interrupts are properly handled some of these
+		// booleans will probably be changed to a specific check. It's here for the sake of
+		// modeling.
+		if self.interrupt.enabled_vblank {
+			self.interrupt.enabled_vblank = false;
+			Some(Interrupt::VBlank)
+		}
+		else if self.interrupt.enabled_lcdstat {
+			self.interrupt.enabled_lcdstat = false;
+			Some(Interrupt::LCDSTAT)
+		}
+		else if self.interrupt.enabled_timer {
+			self.interrupt.enabled_timer = false;
+			Some(Interrupt::Timer)
+		}
+		else if self.interrupt.enabled_serial {
+			self.interrupt.enabled_serial = false;
+			Some(Interrupt::Serial)
+		}
+		else if self.interrupt.enabled_joypad {
+			self.interrupt.enabled_joypad = false;
+			Some(Interrupt::Joypad)
+		}
+		else {
+			None
+		}
+	}
 }
 
 #[derive(Default)]
-struct Interrupt {
+pub struct InterruptRegs {
 	enabled_vblank: bool,
 	enabled_lcdstat: bool,
 	enabled_timer: bool,
@@ -84,7 +113,7 @@ const INTERRUPT_TIMER_MASK  : u8 = 0b0000_0100;
 const INTERRUPT_SERIAL_MASK : u8 = 0b0000_1000;
 const INTERRUPT_JOYPAD_MASK : u8 = 0b0001_0000;
 
-impl Interrupt {
+impl InterruptRegs {
 	pub fn write_flags(&mut self, val: u8) {
 		if (val & INTERRUPT_VBLANK_MASK) != 0 {
 			self.flagged_vblank = true;

@@ -4,6 +4,8 @@ use mem_map::Addr;
 use rom;
 use io;
 
+use cpu::Interrupt;
+
 #[allow(dead_code)]
 pub struct Interconnect{
 	rom: rom::ROM,
@@ -32,18 +34,14 @@ impl Interconnect {
 		let real_addr = mem_map::map_addr(addr);
 
 		match real_addr {
-			Addr::Bank0(_) | Addr::BankN(_) => {
-				self.rom.read_rom(real_addr, self.io.boot_sequence())
-			},
+			Addr::Bank0(_) | Addr::BankN(_) => self.rom.read_rom(real_addr, self.io.boot_sequence()),
 
 			Addr::SpriteRam(a) => self.io.ppu.read_sprite_entry(a),
 			Addr::HardwareIO(a) => self.io.read_byte(a),
 
 			Addr::HighRam(a) => self.high_ram[a as usize],
 
-			_ => {
-				panic!("Reading from {:04X} not implemented", addr);
-			}
+			_ => panic!("Reading from {:04X} not implemented", addr),
 		}
 	}
 
@@ -51,20 +49,13 @@ impl Interconnect {
 		let real_addr = mem_map::map_addr(addr);
 
 		match real_addr {
-			Addr::Bank0(_) => self.rom.write_rom(real_addr, val),
-			Addr::BankN(_) => self.rom.write_rom(real_addr, val),
-			Addr::VRam(a) => {
-				self.io.ppu.vram[a as usize] = val;
-			},
+			Addr::Bank0(_) | Addr::BankN(_) => self.rom.write_rom(real_addr, val),
+			Addr::VRam(a) => self.io.ppu.vram[a as usize] = val,
 			Addr::SpriteRam(a) => self.io.ppu.write_sprite_entry(a, val),
 			Addr::HardwareIO(a) => self.io.write_byte(a, val),
-			Addr::HighRam(a) => {
-				self.high_ram[a as usize] = val;
-			},
+			Addr::HighRam(a) => self.high_ram[a as usize] = val,
 
-			_ => {
-				panic!("Writing to {:04X} not implemented", addr);
-			}
+			_ => panic!("Writing to {:04X} not implemented", addr),
 		};
 	}
 
@@ -72,6 +63,10 @@ impl Interconnect {
 		let lsb = self.read_byte(addr);
 		let msb = self.read_byte(addr+1);
 		(lsb, msb)
+	}
+
+	pub fn advance_cycles(&mut self, n_cycles: u32) -> Option<Interrupt> {
+		self.io.advance_cycles(n_cycles)
 	}
 }
 

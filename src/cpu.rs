@@ -105,7 +105,10 @@ impl Cpu {
         }
     }
 
-    pub fn step(&mut self, itct: &mut Interconnect) -> instruction::Instruction{
+    // It returns the instruction along with the total number of machine cycles performed
+    // Note that this is the real number of cycles, not the one stored in the instruction
+    // because some other things may happen
+    pub fn step(&mut self, itct: &mut Interconnect) -> (instruction::Instruction, u32) {
         // get instruction and instruction length from memory with pc
         let inst_addr = self.pc;
         let next_instruction = instruction::get_next_instruction(itct, inst_addr);
@@ -285,11 +288,20 @@ impl Cpu {
             }
         };
 
-        instruction::Instruction {
+        let mut total_cycles = next_instruction.cycles + additional_cycles;
+        // Handle interrupts
+        if self.interrupt_master_enable {
+            if let Some(interrupt) = itct.advance_cycles(total_cycles) {
+                total_cycles += 20;
+                self.handle_interrupt(interrupt, itct);
+            }
+        }
+
+        (instruction::Instruction {
             ex: next_instruction.ex,
             bytes: next_instruction.bytes,
-            cycles: next_instruction.cycles + additional_cycles
-        }
+            cycles: next_instruction.cycles,
+        }, total_cycles)
     }
 
     pub fn read_8bit_register(&self, interconnect: &Interconnect, reg: Reg8) -> u8 {
@@ -514,6 +526,19 @@ impl Cpu {
 
         self.add_update_flags(a, negative_b)
     }
+
+    fn handle_interrupt(&mut self, int: Interrupt, itct: &mut Interconnect) {
+        self.interrupt_master_enable = false;
+        self.push(itct, Reg16::PC);
+
+        match int {
+            Interrupt::VBlank  => self.pc = 0x0040,
+            Interrupt::LCDSTAT => self.pc = 0x0048,
+            Interrupt::Timer   => self.pc = 0x0050,
+            Interrupt::Serial  => self.pc = 0x0058,
+            Interrupt::Joypad  => self.pc = 0x0060,
+        }
+    }
 }
 
 // 8-bit register
@@ -563,4 +588,8 @@ impl fmt::Display for Reg16 {
 pub enum Register {
 	Register8(Reg8),
 	Register16(Reg16),
+}
+
+pub enum Interrupt{
+    VBlank, LCDSTAT, Timer, Serial, Joypad
 }
