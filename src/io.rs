@@ -1,5 +1,6 @@
 use video;
 use cpu::Interrupt;
+use video::VideoBuffer;
 
 pub struct GBIO {
 	pub interrupt: InterruptRegs,
@@ -62,11 +63,11 @@ impl GBIO {
 		}
 	}
 
-	pub fn advance_cycles(&mut self, n_cycles: u32) -> Option<Interrupt> {
+	pub fn advance_cycles(&mut self, n_cycles: u64, vbuff: &mut VideoBuffer) -> Option<Interrupt> {
 		// This implementation is temporary. Once interrupts are properly handled some of these
 		// booleans will probably be changed to a specific check. It's here for the sake of
 		// modeling.
-		if let Some(interrupt) = self.ppu.build_image() {
+		if let Some(interrupt) = self.ppu.build_image(vbuff) {
 			match interrupt {
 				Interrupt::VBlank  => self.interrupt.flagged_vblank = true,
 				Interrupt::LCDSTAT => self.interrupt.flagged_lcdstat = true,

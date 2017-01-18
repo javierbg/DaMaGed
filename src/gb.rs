@@ -1,6 +1,7 @@
 use interconnect::Interconnect;
 use cpu;
 use cpu::{Reg8, Reg16};
+use video::VideoBuffer;
 use instruction;
 use instruction::Instruction;
 
@@ -19,12 +20,12 @@ impl GB {
 		}
 	}
 
-	pub fn step(&mut self) -> (Instruction, u32) {
-		self.cpu.step(&mut self.interconnect)
+	pub fn step(&mut self, vbuff: &mut VideoBuffer) -> (Instruction, u64) {
+		self.cpu.step(&mut self.interconnect, vbuff)
 	}
 
-	pub fn run(&mut self) {
-		self.cpu.run(&mut self.interconnect);
+	pub fn run(&mut self, vbuff: &mut VideoBuffer) {
+		self.cpu.run(&mut self.interconnect, vbuff);
 	}
 
 	pub fn read_8bit_register(&self, r: Reg8) -> u8 {

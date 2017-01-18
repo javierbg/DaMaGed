@@ -6,7 +6,8 @@ const SCREEN_HEIGHT: usize = 144;
 const SCREEN_WIDTH : usize = 160;
 
 pub struct PPU {
-	image: [[Color ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
+	//image: [[Color ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
+	image: Vec<u32>,
 
 	sprite_ram: [Sprite ; N_SPRITES],
 	pub vram: [u8 ; mem_map::VRAM_LENGTH as usize],
@@ -46,7 +47,8 @@ pub struct PPU {
 impl Default for PPU {
 	fn default() -> PPU {
 		PPU {
-			image: [[Color::White ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
+			//image: [[Color::White ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
+			image: vec![0u32 ; SCREEN_WIDTH * SCREEN_HEIGHT],
 
 			sprite_ram: [Sprite::default() ; N_SPRITES],
 			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
@@ -229,7 +231,7 @@ impl PPU {
 		if self.lcdc_y_coordinate == self.ly_compare { 0b0000_0100 } else { 0 }
 	}
 
-	pub fn build_image(&mut self) -> Option<Interrupt> {
+	pub fn build_image(&mut self, vbuff: &mut VideoBuffer) -> Option<Interrupt> {
 		if self.lcdc_y_coordinate >= SCREEN_HEIGHT{
 			return None;
 		}
@@ -239,6 +241,8 @@ impl PPU {
 				self.lcdc_y_coordinate = pix_y;
 				return Some(Interrupt::LCDSTAT);
 			}
+
+			let start_of_row = pix_y * SCREEN_WIDTH;
 
 			for pix_x in 0..SCREEN_WIDTH {
 				//TODO: A lot of the computations can be optimized
@@ -257,13 +261,16 @@ impl PPU {
 
 					let color = self.background_palette[pix_value as usize];
 
-					self.image[pix_y][pix_x] = color;
+					//self.image[pix_y][pix_x] = color;
+					self.image[start_of_row + pix_x] = Color::to_u32(color);
 				}
 
 				// Draw sprites
 			}
 		}
 		self.lcdc_y_coordinate = 144;
+
+		vbuff.output_frame(self.image.to_vec());
 
 		return Some(Interrupt::VBlank);
 	}
@@ -334,6 +341,15 @@ impl Color {
 			Color::Black     => 0b11,
 		}
 	}
+
+	fn to_u32(col: Color) -> u32 {
+		match col {
+			Color::White     => 0xFF_FF_FF,
+			Color::LightGray => 0x55_55_55,
+			Color::DarkGray  => 0xAA_AA_AA,
+			Color::Black     => 0x00_00_00,
+		}
+	}
 }
 
 #[derive(Default, Copy, Clone)]
@@ -355,3 +371,14 @@ const SPRITE_FLIP_X_MASK   : u8 = 0b0010_0000;
 const SPRITE_PALETTE_MASK  : u8 = 0b0001_0000;
 
 type Tile = [[u8 ; 8] ; 8];
+
+#[derive(Default)]
+pub struct VideoBuffer{
+	pub next_frame: Option<Vec<u32>>,
+}
+
+impl VideoBuffer {
+	pub fn output_frame(&mut self, frame: Vec<u32>) {
+		self.next_frame = Some(frame);
+	}
+}

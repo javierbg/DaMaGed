@@ -1,6 +1,7 @@
 use interconnect::Interconnect;
 use instruction;
 use instruction::ExInstruction;
+use video::VideoBuffer;
 
 use std::fmt;
 
@@ -99,20 +100,20 @@ impl fmt::Display for Cpu {
 #[allow(dead_code)]
 impl Cpu {
 
-    pub fn run(&mut self, itct: &mut Interconnect) {
+    pub fn run(&mut self, itct: &mut Interconnect, vbuff: &mut VideoBuffer) {
         loop {
-            self.step(itct);
+            self.step(itct, vbuff);
         }
     }
 
     // It returns the instruction along with the total number of machine cycles performed
     // Note that this is the real number of cycles, not the one stored in the instruction
     // because some other things may happen
-    pub fn step(&mut self, itct: &mut Interconnect) -> (instruction::Instruction, u32) {
+    pub fn step(&mut self, itct: &mut Interconnect, vbuff: &mut VideoBuffer) -> (instruction::Instruction, u64) {
         // get instruction and instruction length from memory with pc
         let inst_addr = self.pc;
         let next_instruction = instruction::get_next_instruction(itct, inst_addr);
-        let mut additional_cycles: u32 = 0; // For conditinal jumps/calls/rets, how many extra
+        let mut additional_cycles = 0; // For conditinal jumps/calls/rets, how many extra
                                             // cpu cycles it will take
 
         // increment pc with instruction length
@@ -309,7 +310,7 @@ impl Cpu {
         let mut total_cycles = next_instruction.cycles + additional_cycles;
         // Handle interrupts
         if self.interrupt_master_enable {
-            if let Some(interrupt) = itct.advance_cycles(total_cycles) {
+            if let Some(interrupt) = itct.advance_cycles(total_cycles, vbuff) {
                 total_cycles += 20;
                 self.handle_interrupt(interrupt, itct);
             }

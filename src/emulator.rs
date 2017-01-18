@@ -1,10 +1,17 @@
 use std::collections::HashSet;
 use std::io;
 use std::io::Write;
+use std::time::{Instant, Duration};
+use std::thread::sleep;
 
 use cpu::{Register, Reg8, Reg16};
 use instruction::Instruction;
 use gb;
+use video::VideoBuffer;
+
+use minifb::{Window, WindowOptions, Scale, Key};
+
+const CYCLES_PER_FRAME:  u64 = 70_256;
 
 enum ExecutionMode {
 	Running,
@@ -46,7 +53,17 @@ impl Emulator {
 	pub fn run(&mut self) {
 		match self.mode {
 			ExecutionMode::Running => {
-				self.gb.run();
+				let w_options = WindowOptions {
+					borderless: false,
+					title: true,
+					resize: false,
+					scale: Scale::X2,
+				};
+
+				match  Window::new("Rusty Boy", 160, 144, w_options) {
+					Ok(mut window) => self.run_window(&mut window),
+					Err(err) => println!("Error creating window: {}", err),
+				}
 			}
 
 			ExecutionMode::Debugging => {
@@ -55,7 +72,44 @@ impl Emulator {
 		}
 	}
 
+	fn run_window(&mut self, window: &mut Window) {
+		let frame_duration: Duration = Duration::from_millis(17);
+		let mut current_cycle: u64 = 0;
+		let mut frame_start = Instant::now();
+
+		while window.is_open() && !window.is_key_down(Key::Escape) {
+			let mut vbuff = VideoBuffer::default();
+
+			let (_, cycles) = self.gb.step(&mut vbuff);
+			current_cycle += cycles;
+
+			if let Some(buff) = vbuff.next_frame {
+				window.update_with_buffer(&buff);
+
+				let remaining_cycles = if CYCLES_PER_FRAME > current_cycle {
+					CYCLES_PER_FRAME - current_cycle
+				} else {
+					0
+				};
+
+				let elapsed = frame_start.elapsed();
+				if elapsed < frame_duration {
+					let remaining = frame_duration - elapsed;
+					sleep(remaining);
+				}
+
+				frame_start = Instant::now();
+				current_cycle = 0;
+			}
+			else {
+				window.update();
+			}
+		}
+	}
+
 	fn execute_debug_command(&mut self, command: DebugCommand) {
+		let mut vbuff = VideoBuffer::default();
+
 		match command {
 			DebugCommand::SetBreakpoint(addr) => {
 				if self.breakpoints.contains(&addr) {
@@ -70,19 +124,19 @@ impl Emulator {
 
 			DebugCommand::Continue => {
 				let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
-				let (inst, _) = self.gb.step();
+				let (inst, _) = self.gb.step(&mut vbuff);
 				self.print_instruction(pc_of_inst, inst);
 
 				while !self.breakpoints.contains(&self.gb.cpu.pc) {
 					let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
-					let (inst, _) = self.gb.step();
+					let (inst, _) = self.gb.step(&mut vbuff);
 					self.print_instruction(pc_of_inst, inst);
 				}
 			}
 
 			DebugCommand::Step => {
 				let pc_of_inst = self.gb.cpu.pc; // Needs to be retreived before step
-				let (inst, _) = self.gb.step();
+				let (inst, _) = self.gb.step(&mut vbuff);
 				self.print_instruction(pc_of_inst, inst);
 			}
 

@@ -9,7 +9,7 @@ use cpu::{Reg8, Reg16};
 pub struct Instruction {
 	pub ex: ExInstruction,
 	pub bytes: Vec<u8>,
-	pub cycles: u32,
+	pub cycles: u64,
 }
 
 impl Instruction {
@@ -181,7 +181,7 @@ impl fmt::Display for Condition {
 	 2. Please, take a look at issue #1
 
    Returns the Executable Instruction along with the number of CPU cycles */
-fn decode_opcode(opcode: u8) -> (ExInstruction, u32) {
+fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 	match opcode {
 		0xCB => (ExInstruction::PrefixCB, 0),
 		0x00 => (ExInstruction::Nop, 4),
@@ -355,7 +355,7 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u32) {
 /* Decodes the register argument in a CP prefixed operation
    Also returns the number of cycles of the operation, which only depends on this argument
    (wether or not it needs to access memory) */
-fn decode_cb_op_reg(opcode: u8) -> (Reg8, u32) {
+fn decode_cb_op_reg(opcode: u8) -> (Reg8, u64) {
 	match opcode & 0x07 {
 		0b000 => (Reg8::B, 8),
 		0b001 => (Reg8::C, 8),
@@ -373,7 +373,7 @@ fn decode_cb_op_bit(opcode: u8) -> u8 {
 	(opcode & 0b00111000) >> 3
 }
 
-fn decode_cb_opcode(opcode: u8) -> (ExInstruction, u32) {
+fn decode_cb_opcode(opcode: u8) -> (ExInstruction, u64) {
 	let (reg, n_cycles) = decode_cb_op_reg(opcode);
 
 	let first_two_bits = opcode & 0xC0;
@@ -422,7 +422,7 @@ pub fn get_next_instructions(itct: &Interconnect, addr: u16, n_inst: u16) -> Vec
 pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction {
 	let opcode = interconnect.read_byte(pc);
 	let mut bytes: Vec<u8> = Vec::new();
-	let mut n_cycles: u32 = 0;
+	let mut n_cycles: u64 = 0;
 	bytes.push(opcode);
 
 	let (decoded, op_n_cycles) = decode_opcode(opcode);

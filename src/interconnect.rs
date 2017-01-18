@@ -5,6 +5,7 @@ use rom;
 use io;
 
 use cpu::Interrupt;
+use video::VideoBuffer;
 
 #[allow(dead_code)]
 pub struct Interconnect{
@@ -65,8 +66,8 @@ impl Interconnect {
 		(lsb, msb)
 	}
 
-	pub fn advance_cycles(&mut self, n_cycles: u32) -> Option<Interrupt> {
-		self.io.advance_cycles(n_cycles)
+	pub fn advance_cycles(&mut self, n_cycles: u64, vbuff: &mut VideoBuffer) -> Option<Interrupt> {
+		self.io.advance_cycles(n_cycles, vbuff)
 	}
 }
 
