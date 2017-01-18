@@ -238,7 +238,6 @@ impl PPU {
 
 		for pix_y in self.lcdc_y_coordinate..SCREEN_HEIGHT {
 			if self.lyc_interrupt_enable && (pix_y == ly_compare) {
-				// TODO: update STAT register (FF41)
 				self.lcdc_y_coordinate = pix_y;
 				return Some(Interrupt::LCDSTAT);
 			}

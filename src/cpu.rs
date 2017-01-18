@@ -149,6 +149,18 @@ impl Cpu {
                 self.load_16bit_register(Reg16::HL, hl);
             },
 
+            ExInstruction::AddA(r) => {
+                let a_val = self.a;
+                let other_val = self.read_8bit_register(itct, r);
+                self.a = self.add_update_flags(a_val, other_val);
+            },
+
+            ExInstruction::SubA(r) => {
+                let a_val = self.a;
+                let other_val = self.read_8bit_register(itct, r);
+                self.a = self.sub_update_flags(a_val, other_val);
+            },
+
             ExInstruction::Xor(r) => {
                 let newval = self.a ^ self.read_8bit_register(itct, r);
                 self.f = if newval == 0x00 { 0x80 } else { 0x00 };
@@ -272,6 +284,12 @@ impl Cpu {
 
             ExInstruction::Push(r) => {
                 self.push(itct, r);
+            },
+
+            ExInstruction::Compare(r) => {
+                let acc = self.a;
+                let val = self.read_8bit_register(itct, r);
+                self.sub_update_flags(acc, val);
             },
 
             ExInstruction::CompareImm(val) => {
