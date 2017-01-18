@@ -39,8 +39,8 @@ pub struct PPU {
 	background_palette: [Color ; 4],
 	object_palettes: [[Color ; 4] ; 2], // Color 0 in each of these two won't really be used (it's always transparency)
 
-	window_y_position: u8,
-	window_x_position: u8,
+	window_y_position: usize,
+	window_x_position: usize,
 }
 
 impl Default for PPU {
@@ -105,8 +105,8 @@ impl PPU {
 			0x48 => Self::write_palette(&mut self.object_palettes[0], val),
 			0x49 => Self::write_palette(&mut self.object_palettes[1], val),
 
-			0x4A => self.window_y_position = val,
-			0x4B => self.window_x_position = val,
+			0x4A => self.window_y_position = val as usize,
+			0x4B => self.window_x_position = val as usize,
 
 			_ => panic!("Invalid PPU write {:02X}", addr)
 		}
@@ -125,8 +125,8 @@ impl PPU {
 			0x48 => Self::read_palette(&self.object_palettes[0]),
 			0x49 => Self::read_palette(&self.object_palettes[1]),
 
-			0x4A => self.window_y_position,
-			0x4B => self.window_x_position,
+			0x4A => self.window_y_position as u8,
+			0x4B => self.window_x_position as u8,
 
 			_ => panic!("Invalid PPU read {:02X}", addr)
 		}
@@ -234,21 +234,76 @@ impl PPU {
 			return None;
 		}
 
-		let ly_compare = self.ly_compare as usize;
-
 		for pix_y in self.lcdc_y_coordinate..SCREEN_HEIGHT {
-			if self.lyc_interrupt_enable && (pix_y == ly_compare) {
+			if self.lyc_interrupt_enable && (pix_y == self.ly_compare) {
 				self.lcdc_y_coordinate = pix_y;
 				return Some(Interrupt::LCDSTAT);
 			}
 
 			for pix_x in 0..SCREEN_WIDTH {
-				//computer pls draw, ty :)
+				//TODO: A lot of the computations can be optimized
+				if self.window_enabled && (self.window_y_position <= pix_y && self.window_x_position <= pix_x){
+					// Draw Window
+				}
+				else {
+					// Draw Background
+					let tile_row        = ((pix_y as u8).wrapping_add(self.scroll_y) / 8) as usize;
+					let tile_row_offset = ((pix_y as u8).wrapping_add(self.scroll_y) % 8) as usize;
+					let tile_col        = ((pix_x as u8).wrapping_add(self.scroll_x) / 8) as usize;
+					let tile_col_offset = ((pix_x as u8).wrapping_add(self.scroll_x) % 8) as usize;
+
+					let tile = self.read_bg_tile(tile_row, tile_col);
+					let pix_value = tile[tile_row_offset][tile_col_offset];
+
+					let color = self.background_palette[pix_value as usize];
+
+					self.image[pix_y][pix_x] = color;
+				}
+
+				// Draw sprites
 			}
 		}
 		self.lcdc_y_coordinate = 144;
 
 		return Some(Interrupt::VBlank);
+	}
+
+	fn read_tile(&self, addr: usize) -> Tile {
+		let tile_slice = &self.vram[addr .. (addr + 16)];
+		let mut tile: Tile = [[0u8 ; 8] ; 8];
+
+		for row in 0 .. 8 {
+			let mut byte_hi = tile_slice[row * 2];
+			let mut byte_lo = tile_slice[(row * 2) + 1];
+
+			for col in (0..8).rev() {
+				tile[row][col] = ((byte_hi & 0b1) << 1) + byte_lo & 0b1;
+				byte_hi = byte_hi >> 1;
+				byte_lo = byte_lo >> 1;
+			}
+		}
+
+		tile
+	}
+
+	fn read_bg_window_tile(&self, start_offset: usize, row: usize, col: usize) -> Tile {
+		let tile_index_index = start_offset + ((32 * row) + col);
+		let tile_index = self.vram[tile_index_index] as usize;
+		let start_data_offset: usize = if self.background_window_tile_data_address { 0x8000 - 0x8000 } else { 0x8800 - 0x8000};
+		let tile_addr  = start_data_offset + (tile_index * 16);
+		self.read_tile(tile_addr)
+	}
+
+	fn read_bg_tile(&self, row: usize, col: usize) -> Tile {
+		let start_offset: usize = if self.background_tile_map_address { 0x9C00 - 0x8000 } else { 0x9800 - 0x8000 };
+
+		self.read_bg_window_tile(start_offset, row, col)
+	}
+
+	fn read_window_tile(&self, row: usize, col: usize) -> Tile {
+		let start_offset = (if self.window_tile_map_address { 0x9C00 - 0x8000 } else { 0x9800 - 0x8000 }) as usize;
+
+		self.read_bg_window_tile(start_offset, row, col)
 	}
 }
 
@@ -298,3 +353,5 @@ const SPRITE_PRIORITY_MASK : u8 = 0b1000_0000;
 const SPRITE_FLIP_Y_MASK   : u8 = 0b0100_0000;
 const SPRITE_FLIP_X_MASK   : u8 = 0b0010_0000;
 const SPRITE_PALETTE_MASK  : u8 = 0b0001_0000;
+
+type Tile = [[u8 ; 8] ; 8];
