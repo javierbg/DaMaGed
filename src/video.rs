@@ -261,6 +261,9 @@ impl PPU {
 
 		let start_of_row = pix_y * SCREEN_WIDTH;
 
+		let tile_row        = ((pix_y as u8).wrapping_add(self.scroll_y) / 8) as usize;
+		let tile_row_offset = ((pix_y as u8).wrapping_add(self.scroll_y) % 8) as usize;
+
 		for pix_x in 0..SCREEN_WIDTH {
 			//TODO: A lot of the computations can be optimized
 			if self.window_enabled && (self.window_y_position <= pix_y && self.window_x_position <= pix_x){
@@ -268,8 +271,7 @@ impl PPU {
 			}
 			else {
 				// Draw Background
-				let tile_row        = ((pix_y as u8).wrapping_add(self.scroll_y) / 8) as usize;
-				let tile_row_offset = ((pix_y as u8).wrapping_add(self.scroll_y) % 8) as usize;
+
 				let tile_col        = ((pix_x as u8).wrapping_add(self.scroll_x) / 8) as usize;
 				let tile_col_offset = ((pix_x as u8).wrapping_add(self.scroll_x) % 8) as usize;
 

@@ -101,9 +101,6 @@ impl Emulator {
 				frame_start = Instant::now();
 				current_cycle = 0;
 			}
-			else {
-				window.update();
-			}
 		}
 	}
 
