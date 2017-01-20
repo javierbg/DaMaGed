@@ -9,6 +9,8 @@ pub struct PPU {
 	//image: [[Color ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
 	image: Vec<u32>,
 
+	last_clock: u64,
+
 	sprite_ram: [Sprite ; N_SPRITES],
 	pub vram: [u8 ; mem_map::VRAM_LENGTH as usize],
 
@@ -49,6 +51,8 @@ impl Default for PPU {
 		PPU {
 			//image: [[Color::White ; SCREEN_WIDTH] ; SCREEN_HEIGHT],
 			image: vec![0u32 ; SCREEN_WIDTH * SCREEN_HEIGHT],
+
+			last_clock: 0,
 
 			sprite_ram: [Sprite::default() ; N_SPRITES],
 			vram: [0u8 ; mem_map::VRAM_LENGTH as usize],
@@ -231,48 +235,62 @@ impl PPU {
 		if self.lcdc_y_coordinate == self.ly_compare { 0b0000_0100 } else { 0 }
 	}
 
-	pub fn build_image(&mut self, vbuff: &mut VideoBuffer) -> Option<Interrupt> {
-		if self.lcdc_y_coordinate >= SCREEN_HEIGHT{
+	pub fn build_image(&mut self, n_cycles: u64, vbuff: &mut VideoBuffer) -> Option<Interrupt> {
+		self.last_clock += n_cycles;
+
+		if self.last_clock >= 70_224 {
+			self.last_clock = 0;
+			self.lcdc_y_coordinate = 0;
+		}
+
+		let line_being_drawn = (self.last_clock / 456) as usize;
+		if line_being_drawn < self.lcdc_y_coordinate {
+			// HBlank
 			return None;
 		}
 
-		for pix_y in self.lcdc_y_coordinate..SCREEN_HEIGHT {
-			if self.lyc_interrupt_enable && (pix_y == self.ly_compare) {
-				self.lcdc_y_coordinate = pix_y;
-				return Some(Interrupt::LCDSTAT);
-			}
-
-			let start_of_row = pix_y * SCREEN_WIDTH;
-
-			for pix_x in 0..SCREEN_WIDTH {
-				//TODO: A lot of the computations can be optimized
-				if self.window_enabled && (self.window_y_position <= pix_y && self.window_x_position <= pix_x){
-					// Draw Window
-				}
-				else {
-					// Draw Background
-					let tile_row        = ((pix_y as u8).wrapping_add(self.scroll_y) / 8) as usize;
-					let tile_row_offset = ((pix_y as u8).wrapping_add(self.scroll_y) % 8) as usize;
-					let tile_col        = ((pix_x as u8).wrapping_add(self.scroll_x) / 8) as usize;
-					let tile_col_offset = ((pix_x as u8).wrapping_add(self.scroll_x) % 8) as usize;
-
-					let tile = self.read_bg_tile(tile_row, tile_col);
-					let pix_value = tile[tile_row_offset][tile_col_offset];
-
-					let color = self.background_palette[pix_value as usize];
-
-					//self.image[pix_y][pix_x] = color;
-					self.image[start_of_row + pix_x] = Color::to_u32(color);
-				}
-
-				// Draw sprites
-			}
+		if !self.lcd_display_enabled  ||
+		   self.lcdc_y_coordinate >= SCREEN_HEIGHT {
+			return None;
 		}
-		self.lcdc_y_coordinate = 144;
 
-		vbuff.output_frame(self.image.to_vec());
+		let pix_y = self.lcdc_y_coordinate;
+		if self.lyc_interrupt_enable && (pix_y == self.ly_compare) {
+			return Some(Interrupt::LCDSTAT);
+		}
 
-		return Some(Interrupt::VBlank);
+		let start_of_row = pix_y * SCREEN_WIDTH;
+
+		for pix_x in 0..SCREEN_WIDTH {
+			//TODO: A lot of the computations can be optimized
+			if self.window_enabled && (self.window_y_position <= pix_y && self.window_x_position <= pix_x){
+				// Draw Window
+			}
+			else {
+				// Draw Background
+				let tile_row        = ((pix_y as u8).wrapping_add(self.scroll_y) / 8) as usize;
+				let tile_row_offset = ((pix_y as u8).wrapping_add(self.scroll_y) % 8) as usize;
+				let tile_col        = ((pix_x as u8).wrapping_add(self.scroll_x) / 8) as usize;
+				let tile_col_offset = ((pix_x as u8).wrapping_add(self.scroll_x) % 8) as usize;
+
+				let tile = self.read_bg_tile(tile_row, tile_col);
+				let pix_value = tile[tile_row_offset][tile_col_offset];
+
+				let color = self.background_palette[pix_value as usize];
+
+				//self.image[pix_y][pix_x] = color;
+				self.image[start_of_row + pix_x] = Color::to_u32(color);
+			}
+
+			// Draw sprites
+		}
+		self.lcdc_y_coordinate += 1;
+
+		if self.lcdc_y_coordinate >= SCREEN_HEIGHT {
+			vbuff.output_frame(self.image.to_vec());
+			return Some(Interrupt::VBlank);
+		}
+		return None;
 	}
 
 	fn read_tile(&self, addr: usize) -> Tile {
@@ -284,7 +302,7 @@ impl PPU {
 			let mut byte_lo = tile_slice[(row * 2) + 1];
 
 			for col in (0..8).rev() {
-				tile[row][col] = ((byte_hi & 0b1) << 1) + byte_lo & 0b1;
+				tile[row][col] = ((byte_hi & 0b1) << 1) + (byte_lo & 0b1);
 				byte_hi = byte_hi >> 1;
 				byte_lo = byte_lo >> 1;
 			}

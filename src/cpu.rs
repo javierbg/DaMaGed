@@ -309,8 +309,8 @@ impl Cpu {
 
         let mut total_cycles = next_instruction.cycles + additional_cycles;
         // Handle interrupts
-        if self.interrupt_master_enable {
-            if let Some(interrupt) = itct.advance_cycles(total_cycles, vbuff) {
+        if let Some(interrupt) = itct.advance_cycles(total_cycles, vbuff) {
+            if self.interrupt_master_enable {
                 total_cycles += 20;
                 self.handle_interrupt(interrupt, itct);
             }
