@@ -4,11 +4,11 @@
 
 This is a Game Boy emulator written in the [Rust programming language](https://www.rust-lang.org/en-US/).
 
-This is just a hobby project that, realistically, will never get to be finished. My wish is to, at least, get it to show some graphics, although that's pretty far for now.
+This is just a hobby project that, realistically, will never get to be finished. My wish is to, at least, get it to show some graphics~~, although that's pretty far for now~~. The emulator is now able to show the Nintendo logo on the boot ROM. Yay!
 
-The code structure is initially inspired by that of [Rustendo64](https://github.com/yupferris/rustendo64). [yupferris](https://github.com/yupferris), the author of Rustendo64, decided to stream the development process on Twitch (more info and previous streams on the Rustendo64 repo) and that's what gave me the idea to start this.
+The code structure is initially inspired by that of [Rustendo64](https://github.com/yupferris/rustendo64) and [Rustual Boy](https://github.com/yupferris/vb-rs). [yupferris](https://github.com/yupferris), the author of both, decided to stream the development process on Twitch (more info and previous streams on the repos) and that's what gave me the idea to start this.
 
-Please, note that I'm a total beginner in Rust as well as writing emulators. If you have any suggestions, I encourage you to submit an issue/pull request.
+Please, note that I'm a total beginner in Rust as well as in writing emulators. If you have any suggestions, I encourage you to submit an issue/pull request.
 
 # License
 
