@@ -73,24 +73,16 @@ impl Emulator {
 	}
 
 	fn run_window(&mut self, window: &mut Window) {
-		let frame_duration: Duration = Duration::from_millis(17);
-		let mut current_cycle: u64 = 0;
+		let frame_duration: Duration = Duration::new(0,16750419);
 		let mut frame_start = Instant::now();
 
 		while window.is_open() && !window.is_key_down(Key::Escape) {
 			let mut vbuff = VideoBuffer::default();
 
-			let (_, cycles) = self.gb.step(&mut vbuff);
-			current_cycle += cycles;
+			self.gb.step(&mut vbuff);
 
 			if let Some(buff) = vbuff.next_frame {
 				window.update_with_buffer(&buff);
-
-				let remaining_cycles = if CYCLES_PER_FRAME > current_cycle {
-					CYCLES_PER_FRAME - current_cycle
-				} else {
-					0
-				};
 
 				let elapsed = frame_start.elapsed();
 				if elapsed < frame_duration {
@@ -99,7 +91,6 @@ impl Emulator {
 				}
 
 				frame_start = Instant::now();
-				current_cycle = 0;
 			}
 		}
 	}

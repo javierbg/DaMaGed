@@ -37,6 +37,8 @@ impl Interconnect {
 		match real_addr {
 			Addr::Bank0(_) | Addr::BankN(_) => self.rom.read_rom(real_addr, self.io.boot_sequence()),
 
+			Addr::InternalRam(a) => self.internal_ram[a as usize],
+
 			Addr::SpriteRam(a) => self.io.ppu.read_sprite_entry(a),
 			Addr::HardwareIO(a) => self.io.read_byte(a),
 
@@ -51,6 +53,7 @@ impl Interconnect {
 
 		match real_addr {
 			Addr::Bank0(_) | Addr::BankN(_) => self.rom.write_rom(real_addr, val),
+			Addr::InternalRam(a) => self.internal_ram[a as usize] = val,
 			Addr::VRam(a) => self.io.ppu.vram[a as usize] = val,
 			Addr::SpriteRam(a) => self.io.ppu.write_sprite_entry(a, val),
 			Addr::HardwareIO(a) => self.io.write_byte(a, val),
