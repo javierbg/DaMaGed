@@ -138,16 +138,30 @@ impl Cpu {
 
             ExInstruction::LoadHLPredec => {
                 let a: u8 = self.a;
-                let hl = self.read_16bit_register(Reg16::HL).wrapping_sub(1u16);
-                self.load_16bit_register(Reg16::HL, hl);
+                let new_hl = self.read_16bit_register(Reg16::HL).wrapping_sub(1u16);
+                self.load_16bit_register(Reg16::HL, new_hl);
                 self.load_8bit_register(itct, Reg8::MemHL, a);
             },
 
             ExInstruction::LoadHLPostinc => {
                 let a: u8 = self.a;
                 self.load_8bit_register(itct, Reg8::MemHL, a);
-                let hl = self.read_16bit_register(Reg16::HL).wrapping_add(1u16);
-                self.load_16bit_register(Reg16::HL, hl);
+                let new_hl = self.read_16bit_register(Reg16::HL).wrapping_add(1u16);
+                self.load_16bit_register(Reg16::HL, new_hl);
+            },
+
+            ExInstruction::LoadAPredec => {
+                let new_hl = self.read_16bit_register(Reg16::HL).wrapping_sub(1u16);
+                self.load_16bit_register(Reg16::HL, new_hl);
+                let new_a = self.read_8bit_register(itct, Reg8::MemHL);
+                self.load_8bit_register(itct, Reg8::A, new_a);
+            },
+
+            ExInstruction::LoadAPostinc => {
+                let new_a = self.read_8bit_register(itct, Reg8::MemHL);
+                self.load_8bit_register(itct, Reg8::A, new_a);
+                let new_hl = self.read_16bit_register(Reg16::HL).wrapping_add(1u16);
+                self.load_16bit_register(Reg16::HL, new_hl);
             },
 
             ExInstruction::AddA(r) => {
@@ -164,6 +178,8 @@ impl Cpu {
 
             ExInstruction::Xor(r) => {
                 let newval = self.a ^ self.read_8bit_register(itct, r);
+                // This was done before the set_flag and reset_flag methods were
+                // implemented, but because this is way simpler I'll just leave it like this
                 self.f = if newval == 0x00 { 0x80 } else { 0x00 };
                 self.a = newval;
             },
@@ -259,6 +275,10 @@ impl Cpu {
                 self.set_flag(Flag::H);
             },
 
+            ExInstruction::Jp(a) => {
+                self.pc = a;
+            },
+
             ExInstruction::Jr(j) => {
                 self.pc = self.pc.wrapping_add(j as u16);
             },
@@ -296,6 +316,14 @@ impl Cpu {
             ExInstruction::CompareImm(val) => {
                 let acc = self.a;
                 self.sub_update_flags(acc, val);
+            },
+
+            ExInstruction::DisableInterrupts => {
+                self.interrupt_master_enable = false;
+            },
+
+            ExInstruction::EnableInterrupts => {
+                self.interrupt_master_enable = true;
             },
 
             ExInstruction::Unimplemented => {

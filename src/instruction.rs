@@ -25,6 +25,7 @@ impl Instruction {
 			&ExInstruction::Load16Imm(dst, val) => format!("ld {},${:04x}",dst,val),
 			&ExInstruction::Compare(r) => format!("cp {}", r),
 			&ExInstruction::CompareImm(val) => format!("cp ${:02x}", val),
+			&ExInstruction::Jp(addr) => format!("jp ${:04x}", addr),
 			&ExInstruction::JrC(jr, cond) => format!("jr {},${}",cond,jr),
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::LoadHLPostinc => "ld (hl+),a".into(),
@@ -94,13 +95,13 @@ pub enum ExInstruction {
 	AddA(Reg8), AddAImm(u8),
 
 	// Add to Accumulator with carry
-	AddC(Reg8), AddCImm(u8),
+	AddAC(Reg8), AddACImm(u8),
 
 	// Subtract to Accumulator
 	SubA(Reg8), SubAImm(u8),
 
 	// Subtract to Accumulator with carry
-	SubC(Reg8), SubCImm(u8),
+	SubAC(Reg8), SubACImm(u8),
 
 	And(Reg8), AndImm(u8),
 
@@ -112,18 +113,18 @@ pub enum ExInstruction {
 
 	Increment8(Reg8), Decrement8(Reg8),
 
-	Daa, // Decimal Adjust A (I think?). In short, adjust so number is BCD
-	Cpl, // Invert A (one's complement)
-	Neg, // Negate A (A <- 0 - A, aka two's complement)
-	Ccf, // Toggle Carry flag
-	Scf, // Set Carry flag
+	DecimalAdjust, // Decimal Adjust A (I think?). In short, adjust so number is BCD
+	Complement, // Invert A (one's complement)
+	Negate, // Negate A (A <- 0 - A, aka two's complement)
+	ChangeCarryFlag, // Toggle Carry flag
+	SetCarryFlag, // Set Carry flag
 	Nop, // No operation
 	Halt, // Halt the system (power saving). Wake up on interrupt
-	Di, // Disable interrupt flip-flops (IFF1, IFF2)
-	Ei, // Enable the above
+	DisableInterrupts, // Disable interrupt flip-flops (IFF1, IFF2)
+	EnableInterrupts, // Enable the above
 
 	// 16-bit arithmetic
-	Add16(Reg16), // Add to HL
+	AddHL(Reg16), // Add to HL
 	Increment16(Reg16),
 	Decrement16(Reg16),
 
@@ -187,8 +188,16 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x00 => (ExInstruction::Nop, 4),
 
 		0xE2 => (ExInstruction::Load8(Reg8::MemC, Reg8::A), 8),
-		0x1A => (ExInstruction::Load8(Reg8::A, Reg8::MemDE), 8),
 		0xEA => (ExInstruction::Load8(Reg8::Mem(0u16), Reg8::A), 16),
+
+		0x02 => (ExInstruction::Load8(Reg8::MemBC, Reg8::A), 8),
+		0x12 => (ExInstruction::Load8(Reg8::MemDE, Reg8::A), 8),
+		0x22 => (ExInstruction::LoadHLPostinc, 8),
+		0x32 => (ExInstruction::LoadHLPredec, 8),
+		0x0A => (ExInstruction::Load8(Reg8::A, Reg8::MemBC), 8),
+		0x1A => (ExInstruction::Load8(Reg8::A, Reg8::MemDE), 8),
+		0x2A => (ExInstruction::LoadAPostinc, 8),
+		0x3A => (ExInstruction::LoadAPredec, 8),
 
 		0x40 => (ExInstruction::Load8(Reg8::B, Reg8::B), 4),
 		0x41 => (ExInstruction::Load8(Reg8::B, Reg8::C), 4),
@@ -270,6 +279,17 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x85 => (ExInstruction::AddA(Reg8::L), 4),
 		0x86 => (ExInstruction::AddA(Reg8::MemHL), 8),
 		0x87 => (ExInstruction::AddA(Reg8::A), 4),
+		0xC6 => (ExInstruction::AddAImm(0u8), 8),
+
+		0x88 => (ExInstruction::AddAC(Reg8::B), 4),
+		0x89 => (ExInstruction::AddAC(Reg8::C), 4),
+		0x8A => (ExInstruction::AddAC(Reg8::D), 4),
+		0x8B => (ExInstruction::AddAC(Reg8::E), 4),
+		0x8C => (ExInstruction::AddAC(Reg8::H), 4),
+		0x8D => (ExInstruction::AddAC(Reg8::L), 4),
+		0x8E => (ExInstruction::AddAC(Reg8::MemHL), 8),
+		0x8F => (ExInstruction::AddAC(Reg8::A), 4),
+		0xCE => (ExInstruction::AddACImm(0u8), 8),
 
 		0x06 => (ExInstruction::Load8Imm(Reg8::B, 0u8), 8),
 		0x0E => (ExInstruction::Load8Imm(Reg8::C, 0u8), 8),
@@ -288,14 +308,17 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x21 => (ExInstruction::Load16Imm(Reg16::HL, 0u16), 12),
 		0x31 => (ExInstruction::Load16Imm(Reg16::SP, 0u16), 12),
 
+		0x09 => (ExInstruction::AddHL(Reg16::BC), 8),
+		0x19 => (ExInstruction::AddHL(Reg16::DE), 8),
+		0x29 => (ExInstruction::AddHL(Reg16::HL), 8),
+		0x39 => (ExInstruction::AddHL(Reg16::SP), 8),
+
+		0xC3 => (ExInstruction::Jp(0u16), 16),
 		// Bear in mind that conditional jump instructions will take
 		// more CPU cycles if the jump is made
 		0x18 => (ExInstruction::Jr(0i8), 8),
 		0x28 => (ExInstruction::JrC(0i8, Condition::Z), 8),
 		0x20 => (ExInstruction::JrC(0i8, Condition::NZ), 8),
-
-		0x32 => (ExInstruction::LoadHLPredec, 8),
-		0x22 => (ExInstruction::LoadHLPostinc, 8),
 
 		0x90 => (ExInstruction::SubA(Reg8::B), 4),
 		0x91 => (ExInstruction::SubA(Reg8::C), 4),
@@ -305,6 +328,17 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x95 => (ExInstruction::SubA(Reg8::L), 4),
 		0x96 => (ExInstruction::SubA(Reg8::MemHL), 8),
 		0x97 => (ExInstruction::SubA(Reg8::A), 4),
+		0xD6 => (ExInstruction::SubAImm(0u8), 8),
+
+		0x98 => (ExInstruction::SubAC(Reg8::B), 4),
+		0x99 => (ExInstruction::SubAC(Reg8::C), 4),
+		0x9A => (ExInstruction::SubAC(Reg8::D), 4),
+		0x9B => (ExInstruction::SubAC(Reg8::E), 4),
+		0x9C => (ExInstruction::SubAC(Reg8::H), 4),
+		0x9D => (ExInstruction::SubAC(Reg8::L), 4),
+		0x9E => (ExInstruction::SubAC(Reg8::MemHL), 8),
+		0x9F => (ExInstruction::SubAC(Reg8::A), 4),
+		0xDE => (ExInstruction::SubACImm(0u8), 8),
 
 		0xB8 => (ExInstruction::Compare(Reg8::B), 4),
 		0xB9 => (ExInstruction::Compare(Reg8::C), 4),
@@ -315,7 +349,35 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0xBE => (ExInstruction::Compare(Reg8::MemHL), 8),
 		0xBF => (ExInstruction::Compare(Reg8::A), 4),
 
+		0xA0 => (ExInstruction::And(Reg8::B), 4),
+		0xA1 => (ExInstruction::And(Reg8::C), 4),
+		0xA2 => (ExInstruction::And(Reg8::D), 4),
+		0xA3 => (ExInstruction::And(Reg8::E), 4),
+		0xA4 => (ExInstruction::And(Reg8::H), 4),
+		0xA5 => (ExInstruction::And(Reg8::L), 4),
+		0xA6 => (ExInstruction::And(Reg8::MemHL), 8),
+		0xA7 => (ExInstruction::And(Reg8::A), 4),
+		0xE6 => (ExInstruction::AndImm(0u8), 8),
+
+		0xA8 => (ExInstruction::Xor(Reg8::B), 4),
+		0xA9 => (ExInstruction::Xor(Reg8::C), 4),
+		0xAA => (ExInstruction::Xor(Reg8::D), 4),
+		0xAB => (ExInstruction::Xor(Reg8::E), 4),
+		0xAC => (ExInstruction::Xor(Reg8::H), 4),
+		0xAD => (ExInstruction::Xor(Reg8::L), 4),
+		0xAE => (ExInstruction::Xor(Reg8::MemHL), 8),
 		0xAF => (ExInstruction::Xor(Reg8::A), 4),
+		0xEE => (ExInstruction::XorImm(0u8), 8),
+
+		0xB0 => (ExInstruction::Or(Reg8::B), 4),
+		0xB1 => (ExInstruction::Or(Reg8::C), 4),
+		0xB2 => (ExInstruction::Or(Reg8::D), 4),
+		0xB3 => (ExInstruction::Or(Reg8::E), 4),
+		0xB4 => (ExInstruction::Or(Reg8::H), 4),
+		0xB5 => (ExInstruction::Or(Reg8::L), 4),
+		0xB6 => (ExInstruction::Or(Reg8::MemHL), 8),
+		0xB7 => (ExInstruction::Or(Reg8::A), 4),
+		0xF6 => (ExInstruction::OrImm(0u8), 8),
 
 		0x04 => (ExInstruction::Increment8(Reg8::B), 4),
 		0x0C => (ExInstruction::Increment8(Reg8::C), 4),
@@ -335,8 +397,15 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x35 => (ExInstruction::Decrement8(Reg8::MemHL), 12),
 		0x3D => (ExInstruction::Decrement8(Reg8::A), 4),
 
-		0x23 => (ExInstruction::Increment16(Reg16::HL), 8),
+		0x03 => (ExInstruction::Increment16(Reg16::BC), 8),
 		0x13 => (ExInstruction::Increment16(Reg16::DE), 8),
+		0x23 => (ExInstruction::Increment16(Reg16::HL), 8),
+		0x33 => (ExInstruction::Increment16(Reg16::SP), 8),
+
+		0x0B => (ExInstruction::Decrement16(Reg16::BC), 8),
+		0x1B => (ExInstruction::Decrement16(Reg16::DE), 8),
+		0x2B => (ExInstruction::Decrement16(Reg16::HL), 8),
+		0x3B => (ExInstruction::Decrement16(Reg16::SP), 8),
 
 		0x17 => (ExInstruction::Rotate(Reg8::A, true, false), 4),
 
@@ -345,6 +414,8 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 
 		0xCD => (ExInstruction::Call(0u16), 24),
 		0xC9 => (ExInstruction::Return, 16),
+
+		0xF3 => (ExInstruction::DisableInterrupts, 4),
 
 		0xFE => (ExInstruction::CompareImm(0u8), 8),
 
@@ -437,6 +508,15 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 			decoded_cb
 		},
 
+		ExInstruction::Jp(_) => {
+			let (lsb, msb) = interconnect.read_2bytes(pc+1);
+			bytes.push(lsb);
+			bytes.push(msb);
+
+			let addr: u16 = bytes_to_u16(lsb, msb);
+			ExInstruction::Jp(addr)
+		},
+
 		ExInstruction::Jr(_) => {
 			let second_byte = interconnect.read_byte(pc+1);
 			bytes.push(second_byte);
@@ -503,6 +583,48 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 			bytes.push(msb);
 			let b: u16 = bytes_to_u16(lsb, msb);
 			ExInstruction::Call(b)
+		},
+
+		ExInstruction::AddAImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::AddAImm(val)
+		},
+
+		ExInstruction::SubAImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::SubAImm(val)
+		},
+
+		ExInstruction::AndImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::AndImm(val)
+		},
+
+		ExInstruction::OrImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::OrImm(val)
+		},
+
+		ExInstruction::AddACImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::AddACImm(val)
+		},
+
+		ExInstruction::SubACImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::SubACImm(val)
+		},
+
+		ExInstruction::XorImm(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::XorImm(val)
 		},
 
 		ExInstruction::CompareImm(_) => {
