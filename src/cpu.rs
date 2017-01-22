@@ -184,6 +184,12 @@ impl Cpu {
                 self.a = newval;
             },
 
+            ExInstruction::Or(r) => {
+                let newval = self.a | self.read_8bit_register(itct, r);
+                self.f = if newval == 0x00 { 0x80 } else { 0x00 };
+                self.a = newval;
+            },
+
             ExInstruction::Increment8(r) => {
                 let val = self.read_8bit_register(itct, r);
                 let newval = self.add_update_flags(val, 1);
@@ -200,6 +206,12 @@ impl Cpu {
                 let val = self.read_16bit_register(r);
                 // Do NOT update flags
                 let newval = val.wrapping_add(1);
+                self.load_16bit_register(r, newval);
+            },
+
+            ExInstruction::Decrement16(r) => {
+                let val = self.read_16bit_register(r);
+                let newval = val.wrapping_sub(1);
                 self.load_16bit_register(r, newval);
             },
 

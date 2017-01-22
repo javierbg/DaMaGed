@@ -44,6 +44,8 @@ impl Interconnect {
 
 			Addr::HighRam(a) => self.high_ram[a as usize],
 
+			Addr::InterruptEnable => self.io.read_byte(0xFFu8),
+
 			_ => panic!("Reading from {:04X} not implemented", addr),
 		}
 	}
@@ -56,8 +58,11 @@ impl Interconnect {
 			Addr::InternalRam(a) => self.internal_ram[a as usize] = val,
 			Addr::VRam(a) => self.io.ppu.vram[a as usize] = val,
 			Addr::SpriteRam(a) => self.io.ppu.write_sprite_entry(a, val),
+			Addr::ExternalRam(_) => println!("Write to external RAM {:04X}", addr),
+			Addr::Unused => {},
 			Addr::HardwareIO(a) => self.io.write_byte(a, val),
 			Addr::HighRam(a) => self.high_ram[a as usize] = val,
+			Addr::InterruptEnable => self.io.write_byte(0xFFu8, val),
 
 			_ => panic!("Writing to {:04X} not implemented", addr),
 		};

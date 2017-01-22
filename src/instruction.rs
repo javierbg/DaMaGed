@@ -32,6 +32,7 @@ impl Instruction {
 			&ExInstruction::AddA(r) => format!("add a,{}", r),
 			&ExInstruction::SubA(r) => format!("sub {}", r),
 			&ExInstruction::Xor(r) => format!("xor {}", r),
+			&ExInstruction::Or(r) => format!("or {}", r),
 			&ExInstruction::Increment8(r) => format!("inc {}",r),
 			&ExInstruction::Decrement8(r) => format!("dec {}",r),
 			&ExInstruction::Increment16(r) => format!("inc {}",r),
@@ -82,6 +83,9 @@ pub enum ExInstruction {
 	Load16(Reg16, Reg16),
 	Load16Imm(Reg16, u16),
 
+	LoadHLSP(i8), // LD HL,SP+r8 (0xF8)
+	LoadSPHL, // LD SP,HL (0xF9)
+
 	// Special Game Boy instructions
 	LoadHLPostinc, // (HL) <- A, HL <- HL + 1
 	LoadAPostinc,  // A <- (HL), HL <- HL + 1
@@ -125,6 +129,7 @@ pub enum ExInstruction {
 
 	// 16-bit arithmetic
 	AddHL(Reg16), // Add to HL
+	AddSP(i8),
 	Increment16(Reg16),
 	Decrement16(Reg16),
 
@@ -158,6 +163,7 @@ pub enum ExInstruction {
 	Return, // Return from subroutine
 	ReturnC(Condition), // Return only if condition is met
 	// No need for RST, can use Call
+	ReturnFromInterrupt, // Return and enable interrupts
 
 	PrefixCB, // Used to denote that a CB prefixed instruction is next, not a full instruction (used internally only)
 
@@ -271,6 +277,9 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x7E => (ExInstruction::Load8(Reg8::A, Reg8::MemHL), 8),
 		0x7F => (ExInstruction::Load8(Reg8::A, Reg8::A), 4),
 
+		0xF2 => (ExInstruction::Load8(Reg8::A, Reg8::MemC), 8),
+		0xFA => (ExInstruction::Load8(Reg8::A, Reg8::Mem(0u16)), 16),
+
 		0x80 => (ExInstruction::AddA(Reg8::B), 4),
 		0x81 => (ExInstruction::AddA(Reg8::C), 4),
 		0x82 => (ExInstruction::AddA(Reg8::D), 4),
@@ -308,6 +317,9 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x21 => (ExInstruction::Load16Imm(Reg16::HL, 0u16), 12),
 		0x31 => (ExInstruction::Load16Imm(Reg16::SP, 0u16), 12),
 
+		0xF8 => (ExInstruction::LoadHLSP(0i8), 12),
+		0xF9 => (ExInstruction::LoadSPHL, 8),
+
 		0x09 => (ExInstruction::AddHL(Reg16::BC), 8),
 		0x19 => (ExInstruction::AddHL(Reg16::DE), 8),
 		0x29 => (ExInstruction::AddHL(Reg16::HL), 8),
@@ -318,7 +330,16 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		// more CPU cycles if the jump is made
 		0x18 => (ExInstruction::Jr(0i8), 8),
 		0x28 => (ExInstruction::JrC(0i8, Condition::Z), 8),
+		0x38 => (ExInstruction::JrC(0i8, Condition::C), 8),
 		0x20 => (ExInstruction::JrC(0i8, Condition::NZ), 8),
+		0x30 => (ExInstruction::JrC(0i8, Condition::NC), 8),
+
+		0xC2 => (ExInstruction::JpC(0u16, Condition::NZ), 12),
+		0xCA => (ExInstruction::JpC(0u16, Condition::Z), 12),
+		0xD2 => (ExInstruction::JpC(0u16, Condition::NC), 12),
+		0xDA => (ExInstruction::JpC(0u16, Condition::C), 12),
+
+		0xE9 => (ExInstruction::JpHL, 4),
 
 		0x90 => (ExInstruction::SubA(Reg8::B), 4),
 		0x91 => (ExInstruction::SubA(Reg8::C), 4),
@@ -407,17 +428,53 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0x2B => (ExInstruction::Decrement16(Reg16::HL), 8),
 		0x3B => (ExInstruction::Decrement16(Reg16::SP), 8),
 
+		0x07 => (ExInstruction::Rotate(Reg8::A, true, true), 4),
 		0x17 => (ExInstruction::Rotate(Reg8::A, true, false), 4),
+		0x0F => (ExInstruction::Rotate(Reg8::A, false, true), 4),
+		0x1F => (ExInstruction::Rotate(Reg8::A, false, false), 4),
 
 		0xC5 => (ExInstruction::Push(Reg16::BC), 16),
+		0xD5 => (ExInstruction::Push(Reg16::DE), 16),
+		0xE5 => (ExInstruction::Push(Reg16::HL), 16),
+		//0xF5 => (ExInstruction::Push(Reg16::AF), 16),
+
 		0xC1 => (ExInstruction::Pop(Reg16::BC), 12),
+		0xD1 => (ExInstruction::Pop(Reg16::DE), 12),
+		0xE1 => (ExInstruction::Pop(Reg16::HL), 12),
+		//0xF1 => (ExInstruction::Pop(Reg16::AF), 12),
 
-		0xCD => (ExInstruction::Call(0u16), 24),
+		0xCD => (ExInstruction::Call(0xFF_FFu16), 24), // Important to specify 0xFF_FFu16
 		0xC9 => (ExInstruction::Return, 16),
+		0xC0 => (ExInstruction::ReturnC(Condition::NZ), 8),
+		0xD0 => (ExInstruction::ReturnC(Condition::NC), 8),
+		0xC8 => (ExInstruction::ReturnC(Condition::Z), 8),
+		0xD8 => (ExInstruction::ReturnC(Condition::C), 8),
+		0xD9 => (ExInstruction::ReturnFromInterrupt, 16),
 
+		0xC7 => (ExInstruction::Call(0x00_00), 16),
+		0xCF => (ExInstruction::Call(0x00_08), 16),
+		0xD7 => (ExInstruction::Call(0x00_10), 16),
+		0xDF => (ExInstruction::Call(0x00_18), 16),
+		0xE7 => (ExInstruction::Call(0x00_20), 16),
+		0xEF => (ExInstruction::Call(0x00_28), 16),
+		0xF7 => (ExInstruction::Call(0x00_30), 16),
+		0xFF => (ExInstruction::Call(0x00_38), 16),
+
+		0xC4 => (ExInstruction::CallC(0u16, Condition::NZ), 12),
+		0xD4 => (ExInstruction::CallC(0u16, Condition::NC), 12),
+		0xCC => (ExInstruction::CallC(0u16, Condition::Z), 12),
+		0xDC => (ExInstruction::CallC(0u16, Condition::C), 12),
+
+		0xFB => (ExInstruction::EnableInterrupts, 4),
 		0xF3 => (ExInstruction::DisableInterrupts, 4),
 
 		0xFE => (ExInstruction::CompareImm(0u8), 8),
+
+		0x2F => (ExInstruction::Complement, 4),
+		0x3F => (ExInstruction::ChangeCarryFlag, 4),
+		0x37 => (ExInstruction::SetCarryFlag, 4),
+
+		0x27 => (ExInstruction::DecimalAdjust, 4),
 
 		_ => (ExInstruction::Unimplemented, 0),
 	}
@@ -517,6 +574,14 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 			ExInstruction::Jp(addr)
 		},
 
+		ExInstruction::JpC(_, cond) => {
+			let (lsb, msb) = interconnect.read_2bytes(pc+1);
+			bytes.push(lsb);
+			bytes.push(msb);
+			let addr = bytes_to_u16(lsb, msb);
+			ExInstruction::JpC(addr, cond)
+		},
+
 		ExInstruction::Jr(_) => {
 			let second_byte = interconnect.read_byte(pc+1);
 			bytes.push(second_byte);
@@ -577,12 +642,28 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 			ExInstruction::Load16Imm(r, b)
 		},
 
-		ExInstruction::Call(_) => {
+		ExInstruction::LoadHLSP(_) => {
+			let b = interconnect.read_byte(pc+1);
+			bytes.push(b);
+			ExInstruction::LoadHLSP(b as i8)
+		}
+
+		ExInstruction::Call(0xFF_FFu16) => {
+			// This should only happen when the Call instruction is returned with
+			// address ffff, because otherwise it would be a RST (restart) operation.
 			let (lsb, msb) = interconnect.read_2bytes(pc+1);
 			bytes.push(lsb);
 			bytes.push(msb);
-			let b: u16 = bytes_to_u16(lsb, msb);
-			ExInstruction::Call(b)
+			let addr: u16 = bytes_to_u16(lsb, msb);
+			ExInstruction::Call(addr)
+		},
+
+		ExInstruction::CallC(_, cond) => {
+			let (lsb, msb) = interconnect.read_2bytes(pc+1);
+			bytes.push(lsb);
+			bytes.push(msb);
+			let addr: u16 = bytes_to_u16(lsb, msb);
+			ExInstruction::CallC(addr, cond)
 		},
 
 		ExInstruction::AddAImm(_) => {
@@ -632,6 +713,12 @@ pub fn get_next_instruction(interconnect: &Interconnect, pc: u16) -> Instruction
 			bytes.push(val);
 			ExInstruction::CompareImm(val)
 		},
+
+		ExInstruction::AddSP(_) => {
+			let val = interconnect.read_byte(pc+1);
+			bytes.push(val);
+			ExInstruction::AddSP(val as i8)
+		}
 
 		_ => decoded
 	};

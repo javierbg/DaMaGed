@@ -34,7 +34,7 @@ impl GBIO {
 		match addr {
 			0x00 => self.joypad.write_joypad(val),
 
-			//0x01 ... 0x03 => // Serial data transfer
+			0x01 ... 0x03 => println!("Write to SERIAL"),
 
 			//0x04 ... 0x07 => // Timer
 
@@ -43,6 +43,8 @@ impl GBIO {
 			0x40 ... 0x4B => self.ppu.write_ppu(addr, val),
 
 			0x50 => self.boot = val == 0,
+
+			0x51 ... 0x7F => {}, // Empty
 
 			0x0F => self.interrupt.write_flags(val),
 			0xFF => self.interrupt.write_enable(val),

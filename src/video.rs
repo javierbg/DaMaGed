@@ -29,8 +29,8 @@ pub struct PPU {
 	mode2_oam_interrupt_enable: bool,
 	mode1_vblank_interrupt_enable: bool,
 	mode0_hblank_interrupt_enable: bool,
-	// lyc == ly flag goes here
-	// TODO: mode flag (??)
+	// no need for coincidence flag, will be checked dynamically
+	mode_flag: u8,
 
 	scroll_y: u8,
 	scroll_x: u8,
@@ -70,6 +70,7 @@ impl Default for PPU {
 			mode2_oam_interrupt_enable: false,
 			mode1_vblank_interrupt_enable: false,
 			mode0_hblank_interrupt_enable: false,
+			mode_flag: 0,
 
 			scroll_y: 0,
 			scroll_x: 0,
@@ -87,7 +88,7 @@ impl Default for PPU {
 	}
 }
 
-// LCDC masks
+// LCD Control masks
 const LCDC_LCD_DISPLAY_ENABLE_MASK         : u8 = 0b1000_0000;
 const LCDC_WINDOW_TILE_MAP_ADDRESS_MASK    : u8 = 0b0100_0000;
 const LCDC_WINDOW_DISPLAY_ENABLE_MASK      : u8 = 0b0010_0000;
@@ -97,10 +98,19 @@ const LCDC_SPRITE_SIZE_MASK                : u8 = 0b0000_0100;
 const LCDC_SPRITE_DISPLAY_ENABLE_MASK      : u8 = 0b0000_0010;
 const LCDC_BG_DISPLAY_ENABLE_MASK          : u8 = 0b0000_0001;
 
+// LCD Status masks
+const STAT_LYC_LY_COINCIDENCE_INTERRUPT_MASK: u8 = 0b0100_0000;
+const STAT_MODE2_OAM_INTERRUPT_MASK         : u8 = 0b0010_0000;
+const STAT_MODE1_VBLANK_INTERRUPT_MASK      : u8 = 0b0001_0000;
+const STAT_MODE0_HBLANK_INTERRUPT_MASK      : u8 = 0b0000_1000;
+const STAT_COINCIDECE_FLAG_MASK             : u8 = 0b0000_0100;
+const STAT_MODE_FLAG_MASK                   : u8 = 0b0000_0011;
+
 impl PPU {
 	pub fn write_ppu(&mut self, addr: u8, val: u8) {
 		match addr {
 			0x40 => self.write_lcd_control(val),
+			0x41 => self.write_lcdc_stat(val),
 			0x42 => self.scroll_y = val,
 			0x43 => self.scroll_x = val,
 			0x44 => self.lcdc_y_coordinate = 0,
@@ -120,6 +130,7 @@ impl PPU {
 
 	pub fn read_ppu(&self, addr: u8) -> u8 {
 		match addr {
+			0x40 => self.read_lcd_control(),
 			0x41 => self.read_lcdc_stat(),
 			0x42 => self.scroll_y,
 			0x43 => self.scroll_x,
@@ -226,20 +237,28 @@ impl PPU {
 		if self.background_enabled { LCDC_BG_DISPLAY_ENABLE_MASK } else {0}
 	}
 
+	fn write_lcdc_stat(&mut self, val: u8) {
+		self.lyc_interrupt_enable = if (val & STAT_LYC_LY_COINCIDENCE_INTERRUPT_MASK) != 0 { true } else { false };
+		self.mode2_oam_interrupt_enable = if (val & STAT_MODE2_OAM_INTERRUPT_MASK) != 0 { true } else { false };
+		self.mode1_vblank_interrupt_enable = if (val & STAT_MODE1_VBLANK_INTERRUPT_MASK) != 0 { true } else { false };
+		self.mode0_hblank_interrupt_enable = if (val & STAT_MODE0_HBLANK_INTERRUPT_MASK) != 0 { true } else { false };
+	}
+
 	fn read_lcdc_stat(&self) -> u8 {
 		0 |
-		if self.lyc_interrupt_enable                 { 0b0100_0000 } else { 0 } |
-		if self.mode2_oam_interrupt_enable           { 0b0010_0000 } else { 0 } |
-		if self.mode1_vblank_interrupt_enable        { 0b0001_0000 } else { 0 } |
-		if self.mode0_hblank_interrupt_enable        { 0b0000_1000 } else { 0 } |
-		if self.lcdc_y_coordinate == self.ly_compare { 0b0000_0100 } else { 0 }
+		if self.lyc_interrupt_enable                 { STAT_LYC_LY_COINCIDENCE_INTERRUPT_MASK } else { 0 } |
+		if self.mode2_oam_interrupt_enable           { STAT_MODE2_OAM_INTERRUPT_MASK } else { 0 }          |
+		if self.mode1_vblank_interrupt_enable        { STAT_MODE1_VBLANK_INTERRUPT_MASK } else { 0 }       |
+		if self.mode0_hblank_interrupt_enable        { STAT_MODE0_HBLANK_INTERRUPT_MASK } else { 0 }       |
+		if self.lcdc_y_coordinate == self.ly_compare { STAT_COINCIDECE_FLAG_MASK } else { 0 }              |
+		self.mode_flag
 	}
 
 	pub fn build_image(&mut self, n_cycles: u64, vbuff: &mut VideoBuffer) -> Option<Interrupt> {
 		self.last_clock += n_cycles;
 
 		if self.last_clock >= 70_224 {
-			self.last_clock = 0;
+			self.last_clock -= 70_224;
 			self.lcdc_y_coordinate = 0;
 		}
 
@@ -251,6 +270,8 @@ impl PPU {
 
 		if !self.lcd_display_enabled  ||
 		   self.lcdc_y_coordinate >= SCREEN_HEIGHT {
+			// TODO: This assign somehow makes it run too slow :(
+			self.lcdc_y_coordinate = line_being_drawn;
 			return None;
 		}
 
@@ -285,10 +306,13 @@ impl PPU {
 			}
 
 			// Draw sprites
+			
+			self.mode_flag = 0b00; // HBlank period
 		}
 		self.lcdc_y_coordinate += 1;
 
-		if self.lcdc_y_coordinate >= SCREEN_HEIGHT {
+		if self.lcdc_y_coordinate == SCREEN_HEIGHT {
+			self.mode_flag = 0b01; // VBlank period
 			vbuff.output_frame(self.image.to_vec());
 			return Some(Interrupt::VBlank);
 		}

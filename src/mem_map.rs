@@ -57,6 +57,9 @@ pub const SPRITE_RAM_LENGTH: u16 = 0x00A0;
 const SPRITE_RAM_END: u16 = SPRITE_RAM_START + SPRITE_RAM_LENGTH - 1;
 
 // There are 96 (0x60) bytes unused here (what a waste!)
+const UNUSED_START: u16 = 0xFEA0;
+pub const UNUSED_LENGTH: u16 = 0x0060;
+const UNUSED_END: u16 = UNUSED_START + UNUSED_LENGTH - 1;
 
 // Hardware I/0 Registers
 const HARDWARE_IO_START: u16 = 0xFF00;
@@ -79,6 +82,7 @@ pub enum Addr{
 	ExternalRam(u16),
 	InternalRam(u16),
 	SpriteRam(u8),
+	Unused,
 	HardwareIO(u8),
 	HighRam(u16),
 	InterruptEnable,
@@ -108,6 +112,9 @@ pub fn map_addr(addr: u16) -> Addr {
 
 		SPRITE_RAM_START ... SPRITE_RAM_END
 			=> Addr::SpriteRam((addr - SPRITE_RAM_START) as u8),
+
+		UNUSED_START ... UNUSED_END
+			=> Addr::Unused,
 
 		HARDWARE_IO_START ... HARDWARE_IO_END
 			=> Addr::HardwareIO((addr - HARDWARE_IO_START) as u8),
