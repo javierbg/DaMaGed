@@ -8,6 +8,7 @@ pub struct GBIO {
 	joypad: Joypad,
 	serial: SerialData,
 	pub ppu: video::PPU,
+	timer: Timer,
 
 	boot: bool
 }
@@ -20,6 +21,7 @@ impl GBIO {
 			joypad: Joypad::default(),
 			serial: SerialData{},
 			ppu: video::PPU::default(),
+			timer: Timer::default(),
 
 			boot: true
 		}
@@ -36,7 +38,7 @@ impl GBIO {
 
 			0x01 ... 0x03 => println!("Write to SERIAL"),
 
-			//0x04 ... 0x07 => // Timer
+			0x04 ... 0x07 => self.timer.write_timer(addr, val),
 
 			0x10 ... 0x26 => println!("Write to SOUND"),
 
@@ -58,6 +60,7 @@ impl GBIO {
 	pub fn read_byte(&self, addr: u8) -> u8 {
 		match addr {
 			0x00 => self.joypad.read_joypad(),
+			0x04 ... 0x07 => self.timer.read_timer(addr),
 			0x40 ... 0x4B => self.ppu.read_ppu(addr),
 			0x0F => self.interrupt.read_flags(),
 			0xFF => self.interrupt.read_enable(),
@@ -75,6 +78,10 @@ impl GBIO {
 				Interrupt::LCDSTAT => self.interrupt.flagged_lcdstat = true,
 				_ => {}
 			}
+		}
+
+		if self.timer.advance_cycles(n_cycles) {
+			self.interrupt.flagged_timer = true;
 		}
 
 		if self.interrupt.enabled_vblank && self.interrupt.flagged_vblank {
@@ -291,6 +298,89 @@ impl Joypad {
 				if self.input_start  { INPUT_START_VALUE } else { 0 }
 			}
 		}
+	}
+}
+
+#[derive(Default)]
+struct Timer {
+	divider_register: u8,
+	timer_counter: u8,
+	timer_modulo: u8,
+
+	//Timer Control
+	timer_enable: bool,
+	input_clock_select: u64,
+	// 00 -> Clock / 1024
+	// 01 -> Clock / 16
+	// 10 -> Clock / 64
+	// 11 -> Clock / 256
+
+	last_clock: u64,
+}
+
+const TIMER_ENABLE_MASK            : u8 = 0b0000_0100;
+const TIMER_INPUT_CLOCK_SELECT_MASK: u8 = 0b0000_0011;
+
+impl Timer {
+	pub fn read_timer(&self, addr: u8) -> u8 {
+		match addr {
+			0x04 => self.divider_register,
+			0x05 => self.timer_counter,
+			0x06 => self.timer_modulo,
+			0x07 => {
+				0 |
+				if self.timer_enable { TIMER_ENABLE_MASK } else { 0 } |
+				match self.input_clock_select {
+					1024 => 0b00u8,
+					16   => 0b01u8,
+					64   => 0b10u8,
+					256  => 0b11u8,
+					_ => 0u8,
+				}
+			}
+
+			_ => panic!("Invalid read from timer! Address: 0xFF{:02X}", addr),
+		}
+	}
+
+	pub fn write_timer(&mut self, addr: u8, val: u8) {
+		match addr {
+			0x04 => self.divider_register = 0,
+			0x05 => self.timer_counter = val,
+			0x06 => self.timer_modulo = val,
+			0x07 => {
+				self.timer_enable = if (val & TIMER_ENABLE_MASK) != 0 { true } else { false };
+				self.input_clock_select = match val & TIMER_INPUT_CLOCK_SELECT_MASK {
+					0b00 => 1024,
+					0b01 => 16,
+					0b10 => 64,
+					0b11 => 256,
+					_ => 0, // Should never happen
+				};
+			},
+			_ => panic!("Invalid write to timer! Address: 0xFF{:02X}, Value: {:02X}", addr, val),
+		}
+	}
+
+	// Returns true if an interrupt is raised, false otherwise
+	pub fn advance_cycles(&mut self, n_cycles: u64) -> bool {
+		let mut interrupt_ocurred = false;
+		self.last_clock += n_cycles;
+
+		if self.last_clock >= self.input_clock_select {
+			self.last_clock -= self.input_clock_select;
+
+			// If overflow happens, reset to timer_modulo (TMA)
+			self.timer_counter = match self.timer_counter.checked_add(1){
+				Some(next) => next,
+				None => {
+					interrupt_ocurred = true;
+					self.timer_modulo
+				}
+			}
+		}
+
+		return interrupt_ocurred;
 	}
 }
 
