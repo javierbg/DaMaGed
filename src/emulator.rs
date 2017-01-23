@@ -60,7 +60,7 @@ impl Emulator {
 					scale: Scale::X2,
 				};
 
-				match  Window::new("Rusty Boy", 160, 144, w_options) {
+				match  Window::new("DaMaGed", 160, 144, w_options) {
 					Ok(mut window) => self.run_window(&mut window),
 					Err(err) => println!("Error creating window: {}", err),
 				}

@@ -1,6 +1,6 @@
-# Rusty Boy
+# DaMaGed
 
-(WIP name)
+![DaMaGed logo](/misc/damaged_logo.png)
 
 This is a Game Boy emulator written in the [Rust programming language](https://www.rust-lang.org/en-US/).
 
