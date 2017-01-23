@@ -2,6 +2,8 @@
 
 ![DaMaGed logo](/misc/damaged_logo.png)
 
+(formerly known as Rusty Boy)
+
 This is a Game Boy emulator written in the [Rust programming language](https://www.rust-lang.org/en-US/).
 
 This is just a hobby project that, realistically, will never get to be finished. My wish is to, at least, get it to show some graphics~~, although that's pretty far for now~~. The emulator is now able to show the Nintendo logo on the boot ROM. Yay!
