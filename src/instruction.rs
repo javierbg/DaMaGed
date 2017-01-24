@@ -26,6 +26,7 @@ impl Instruction {
 			&ExInstruction::Compare(r) => format!("cp {}", r),
 			&ExInstruction::CompareImm(val) => format!("cp ${:02x}", val),
 			&ExInstruction::Jp(addr) => format!("jp ${:04x}", addr),
+			&ExInstruction::JpC(addr, cond) => format!("jp {},${}",cond,addr),
 			&ExInstruction::JrC(jr, cond) => format!("jr {},${}",cond,jr),
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::LoadHLPostinc => "ld (hl+),a".into(),
@@ -145,9 +146,9 @@ pub enum ExInstruction {
 
 	Swap(Reg8),
 
-	Bit(Reg8, u8), // Test the n-th bit of a register
-	Set(Reg8, u8), // Set the n-th bit of a register
-	Res(Reg8, u8), // Reset the n-th bit of a register
+	Bit(Reg8, u32), // Test the n-th bit of a register
+	Set(Reg8, u32), // Set the n-th bit of a register
+	Res(Reg8, u32), // Reset the n-th bit of a register
 
 	// Jump instructions
 	Jp(u16), // Jump execution to address
@@ -436,12 +437,12 @@ fn decode_opcode(opcode: u8) -> (ExInstruction, u64) {
 		0xC5 => (ExInstruction::Push(Reg16::BC), 16),
 		0xD5 => (ExInstruction::Push(Reg16::DE), 16),
 		0xE5 => (ExInstruction::Push(Reg16::HL), 16),
-		//0xF5 => (ExInstruction::Push(Reg16::AF), 16),
+		0xF5 => (ExInstruction::Push(Reg16::AF), 16),
 
 		0xC1 => (ExInstruction::Pop(Reg16::BC), 12),
 		0xD1 => (ExInstruction::Pop(Reg16::DE), 12),
 		0xE1 => (ExInstruction::Pop(Reg16::HL), 12),
-		//0xF1 => (ExInstruction::Pop(Reg16::AF), 12),
+		0xF1 => (ExInstruction::Pop(Reg16::AF), 12),
 
 		0xCD => (ExInstruction::Call(0xFF_FFu16), 24), // Important to specify 0xFF_FFu16
 		0xC9 => (ExInstruction::Return, 16),
@@ -497,8 +498,8 @@ fn decode_cb_op_reg(opcode: u8) -> (Reg8, u64) {
 	}
 }
 
-fn decode_cb_op_bit(opcode: u8) -> u8 {
-	(opcode & 0b00111000) >> 3
+fn decode_cb_op_bit(opcode: u8) -> u32 {
+	((opcode & 0b00111000) >> 3) as u32
 }
 
 fn decode_cb_opcode(opcode: u8) -> (ExInstruction, u64) {

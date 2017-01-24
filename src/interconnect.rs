@@ -60,12 +60,31 @@ impl Interconnect {
 			Addr::SpriteRam(a) => self.io.ppu.write_sprite_entry(a, val),
 			Addr::ExternalRam(_) => println!("Write to external RAM {:04X}", addr),
 			Addr::Unused => {},
-			Addr::HardwareIO(a) => self.io.write_byte(a, val),
+			Addr::HardwareIO(a) => {
+				if a == 0x46 {
+					self.dma_transfer(val);
+				} else {
+					self.io.write_byte(a, val);
+				}
+			},
 			Addr::HighRam(a) => self.high_ram[a as usize] = val,
 			Addr::InterruptEnable => self.io.write_byte(0xFFu8, val),
 
 			_ => panic!("Writing to {:04X} not implemented", addr),
 		};
+	}
+
+	fn dma_transfer(&mut self, addr_hi: u8) {
+		let source_start: u16 = (addr_hi as u16) << 8;
+		let source_end  : u16 = source_start + 0x00A0;
+
+		let mut dest_addr  : u16 = 0xFE00;
+
+		for source_addr in source_start..source_end {
+			let copied_byte = self.read_byte(source_addr);
+			self.write_byte(dest_addr, copied_byte);
+			dest_addr += 1;
+		}
 	}
 
 	pub fn read_2bytes(&self, addr: u16) -> (u8, u8) {

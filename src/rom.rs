@@ -36,6 +36,7 @@ impl ROM {
 			},
 
 			mem_map::Addr::BankN(i) => {
+				println!("current rom bank: {}", self.current_rom_bank);
 				let real_rom_addr: u16 = (self.current_rom_bank * mem_map::CARTRIDGE_BANK_LENGTH) + i;
 				self.cart_rom[real_rom_addr as usize]
 			},

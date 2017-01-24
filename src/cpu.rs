@@ -170,10 +170,39 @@ impl Cpu {
                 self.a = self.add_update_flags(a_val, other_val);
             },
 
+            ExInstruction::AddHL(r) => {
+                let hl_val = self.read_16bit_register(Reg16::HL);
+                let other_val = self.read_16bit_register(r);
+                let (newval, carry) = other_val.overflowing_add(hl_val);
+                self.load_16bit_register(Reg16::HL, newval);
+
+                self.reset_flag(Flag::N);
+
+                if carry {
+                    self.set_flag(Flag::C);
+                } else {
+                    self.reset_flag(Flag::C);
+                }
+
+                if (((hl_val & 0x0FFF) + (other_val & 0x0FFF)) & 0xF000) != 0 {
+                    self.set_flag(Flag::H);
+                } else {
+                    self.reset_flag(Flag::H);
+                }
+            },
+
             ExInstruction::SubA(r) => {
                 let a_val = self.a;
                 let other_val = self.read_8bit_register(itct, r);
                 self.a = self.sub_update_flags(a_val, other_val);
+            },
+
+            ExInstruction::Complement => {
+                let newval = !self.a;
+                self.a = newval;
+
+                self.set_flag(Flag::N);
+                self.set_flag(Flag::H);
             },
 
             ExInstruction::Xor(r) => {
@@ -184,10 +213,29 @@ impl Cpu {
                 self.a = newval;
             },
 
+            ExInstruction::And(r) => {
+                let newval = self.a & self.read_8bit_register(itct, r);
+                self.f = if newval == 0x00 { 0xA0 } else { 0x20 };
+                self.a = newval;
+            },
+
+            ExInstruction::AndImm(val) => {
+                let newval = self.a & val;
+                self.f = if newval == 0x00 { 0xA0 } else { 0x20 };
+                self.a = newval;
+            }
+
             ExInstruction::Or(r) => {
                 let newval = self.a | self.read_8bit_register(itct, r);
                 self.f = if newval == 0x00 { 0x80 } else { 0x00 };
                 self.a = newval;
+            },
+
+            ExInstruction::Swap(r) => {
+                let oldval = self.read_8bit_register(itct, r);
+                let newval = ((oldval & 0x0F) << 4) | ((oldval & 0xF0) >> 4);
+                self.f = if newval == 0x00 { 0x80 } else { 0x00 };
+                self.load_8bit_register(itct, r, newval);
             },
 
             ExInstruction::Increment8(r) => {
@@ -287,8 +335,22 @@ impl Cpu {
                 self.set_flag(Flag::H);
             },
 
+            ExInstruction::Res(r, b) => {
+                let bit = 0xFEu8.rotate_left(b);
+                let oldval = self.read_8bit_register(itct, r);
+                let newval = oldval & bit;
+                self.load_8bit_register(itct, r, newval);
+            }
+
             ExInstruction::Jp(a) => {
                 self.pc = a;
+            },
+
+            ExInstruction::JpC(a, c) => {
+                if self.cond(c){
+                    self.pc = a;
+                    additional_cycles = 4;
+                }
             },
 
             ExInstruction::Jr(j) => {
@@ -302,6 +364,11 @@ impl Cpu {
                 }
             },
 
+            ExInstruction::JpHL => {
+                let new_pc = self.read_16bit_register(Reg16::HL);
+                self.pc = new_pc;
+            }
+
             ExInstruction::Call(a) => {
                 self.push(itct, Reg16::PC);
                 self.pc = a;
@@ -309,6 +376,18 @@ impl Cpu {
 
             ExInstruction::Return => {
                 self.pop(itct, Reg16::PC);
+            },
+
+            ExInstruction::ReturnC(c) => {
+                if self.cond(c) {
+                    self.pop(itct, Reg16::PC);
+                    additional_cycles = 12;
+                }
+            },
+
+            ExInstruction::ReturnFromInterrupt => {
+                self.pop(itct, Reg16::PC);
+                self.interrupt_master_enable = true;
             },
 
             ExInstruction::Pop(r) => {
@@ -411,6 +490,7 @@ impl Cpu {
 
     pub fn read_16bit_register(&self, reg: Reg16) -> u16 {
         match reg {
+            Reg16::AF => ((self.a as u16) << 8) + (self.f as u16),
             Reg16::BC => ((self.b as u16) << 8) + (self.c as u16),
             Reg16::DE => ((self.d as u16) << 8) + (self.e as u16),
             Reg16::HL => ((self.h as u16) << 8) + (self.l as u16),
@@ -424,6 +504,10 @@ impl Cpu {
         let lsb = val as u8;
 
         match reg {
+            Reg16::AF => {
+                self.a = msb;
+                self.f = lsb;
+            },
             Reg16::BC => {
                 self.b = msb;
                 self.c = lsb;
@@ -488,6 +572,10 @@ impl Cpu {
         let lo_addr = self.sp.wrapping_sub(2);
 
         match reg {
+            Reg16::AF => {
+                itct.write_byte(hi_addr, self.a);
+                itct.write_byte(lo_addr, self.f);
+            },
             Reg16::BC => {
                 itct.write_byte(hi_addr, self.b);
                 itct.write_byte(lo_addr, self.c);
@@ -633,7 +721,7 @@ impl fmt::Display for Reg8 {
 // 16-bit register
 #[derive(Debug, Copy, Clone)]
 pub enum Reg16 {
-	BC, DE, HL, SP, PC
+	AF, BC, DE, HL, SP, PC
 }
 
 impl fmt::Display for Reg16 {
