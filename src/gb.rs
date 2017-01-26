@@ -20,6 +20,10 @@ impl GB {
 		}
 	}
 
+	pub fn game_title(&self) -> String {
+		self.interconnect.game_title()
+	}
+
 	pub fn step(&mut self, vbuff: &mut VideoBuffer) -> (Instruction, u64) {
 		self.cpu.step(&mut self.interconnect, vbuff)
 	}

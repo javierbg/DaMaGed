@@ -8,7 +8,7 @@ use cpu::Interrupt;
 use video::VideoBuffer;
 
 #[allow(dead_code)]
-pub struct Interconnect{
+pub struct Interconnect {
 	rom: rom::ROM,
 
 	internal_ram: [u8 ; mem_map::INTERNAL_RAM_LENGTH as usize],
@@ -31,11 +31,15 @@ impl Interconnect {
 		}
 	}
 
+	pub fn game_title(&self) -> String {
+		self.rom.game_title.clone()
+	}
+
 	pub fn read_byte(&self, addr: u16) -> u8 {
 		let real_addr = mem_map::map_addr(addr);
 
 		match real_addr {
-			Addr::Bank0(_) | Addr::BankN(_) => self.rom.read_rom(real_addr, self.io.boot_sequence()),
+			Addr::CartridgeRom(a) => self.rom.read_rom(a, self.io.boot_sequence()),
 
 			Addr::InternalRam(a) => self.internal_ram[a as usize],
 
@@ -54,7 +58,7 @@ impl Interconnect {
 		let real_addr = mem_map::map_addr(addr);
 
 		match real_addr {
-			Addr::Bank0(_) | Addr::BankN(_) => self.rom.write_rom(real_addr, val),
+			Addr::CartridgeRom(a) => self.rom.write_rom(a, val),
 			Addr::InternalRam(a) => self.internal_ram[a as usize] = val,
 			Addr::VRam(a) => self.io.ppu.vram[a as usize] = val,
 			Addr::SpriteRam(a) => self.io.ppu.write_sprite_entry(a, val),

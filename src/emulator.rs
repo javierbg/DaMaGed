@@ -50,7 +50,15 @@ impl Emulator {
 		}
 	}
 
+	fn print_info(&self) {
+		let game_title = self.gb.game_title();
+
+		println!("Game title: {}", game_title);
+	}
+
 	pub fn run(&mut self) {
+		self.print_info();
+
 		match self.mode {
 			ExecutionMode::Running => {
 				let w_options = WindowOptions {

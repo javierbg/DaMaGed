@@ -9,11 +9,14 @@ const CARTRIDGE_HEADER_END: u16 = CARTRIDGE_HEADER_START + CARTRIDGE_HEADER_LENG
 
 pub const CARTRIDGE_BANK_LENGTH: u16 = 0x4000;
 
-pub const CARTRIDGE_BANK0_START: u16 = 0x0000;
-pub const CARTRIDGE_BANK0_END: u16 = CARTRIDGE_BANK0_START + CARTRIDGE_BANK_LENGTH - 1;
+pub const CARTRIDGE_ROM_START: u16 = 0x0000;
+pub const CARTRIDGE_ROM_END  : u16 = CARTRIDGE_ROM_START + (CARTRIDGE_BANK_LENGTH * 2) - 1;
 
-pub const CARTRIDGE_BANKN_START: u16 = 0x4000;
-pub const CARTRIDGE_BANKN_END: u16 = CARTRIDGE_BANKN_START + CARTRIDGE_BANK_LENGTH - 1;
+pub const CARTRIDGE_BANK0_START: u16 = CARTRIDGE_ROM_START;
+pub const CARTRIDGE_BANK0_END  : u16 = CARTRIDGE_BANK0_START + CARTRIDGE_BANK_LENGTH - 1;
+
+pub const CARTRIDGE_BANKN_START: u16 = CARTRIDGE_BANK0_END + 1;
+pub const CARTRIDGE_BANKN_END  : u16 = CARTRIDGE_ROM_END;
 
 // This down here is Video RAM or VRAM for short
 // Turns out that the mapping can get really funky, so as far as memory mapping goes, we should
@@ -76,8 +79,7 @@ const INTERRUPT_ENABLE_REGISTER: u16 = 0xFFFF;
 
 #[derive(Debug)]
 pub enum Addr{
-	Bank0(u16),
-	BankN(u16),
+	CartridgeRom(u16),
 	VRam(u16),
 	ExternalRam(u16),
 	InternalRam(u16),
@@ -92,11 +94,8 @@ pub enum Addr{
 
 pub fn map_addr(addr: u16) -> Addr {
 	match addr {
-		CARTRIDGE_BANK0_START ... CARTRIDGE_BANK0_END
-			=> Addr::Bank0(addr - CARTRIDGE_BANK0_START),
-
-		CARTRIDGE_BANKN_START ... CARTRIDGE_BANKN_END
-			=> Addr::BankN(addr - CARTRIDGE_BANKN_START),
+		CARTRIDGE_ROM_START ... CARTRIDGE_ROM_END
+			=> Addr::CartridgeRom(addr - CARTRIDGE_ROM_START),
 
 		VRAM_START ... VRAM_END
 			=> Addr::VRam(addr - VRAM_START),
