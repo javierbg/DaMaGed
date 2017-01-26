@@ -17,6 +17,7 @@ impl Instruction {
 		let ex = &self.ex;
 		match ex {
 			&ExInstruction::Nop => "nop".into(),
+			&ExInstruction::Halt => "halt".into(),
 			&ExInstruction::Load8(Reg8::MemH(a), Reg8::A) => format!("ldh ($ff00+{:02x}),a", a),
 			&ExInstruction::Load8(Reg8::A, Reg8::MemH(a)) => format!("ldh a,($ff00+{:02x})", a),
 			&ExInstruction::Load8(dst, src) => format!("ld {},{}",dst,src),
@@ -31,7 +32,10 @@ impl Instruction {
 			&ExInstruction::LoadHLPredec => "ld (-hl),a".into(),
 			&ExInstruction::LoadHLPostinc => "ld (hl+),a".into(),
 			&ExInstruction::AddA(r) => format!("add a,{}", r),
+			&ExInstruction::AddAC(r) => format!("adc a,{}", r),
 			&ExInstruction::SubA(r) => format!("sub {}", r),
+			&ExInstruction::SubAC(r) => format!("sbc a,{}", r),
+			&ExInstruction::SubAImm(v) => format!("sub ${:02X}", v),
 			&ExInstruction::Xor(r) => format!("xor {}", r),
 			&ExInstruction::Or(r) => format!("or {}", r),
 			&ExInstruction::Increment8(r) => format!("inc {}",r),
@@ -39,7 +43,9 @@ impl Instruction {
 			&ExInstruction::Increment16(r) => format!("inc {}",r),
 			&ExInstruction::Decrement16(r) => format!("dec {}",r),
 			&ExInstruction::Call(a) => format!("call ${:04x}", a),
+			&ExInstruction::CallC(a,c) => format!("call {},{}",c,a),
 			&ExInstruction::Return => format!("ret"),
+			&ExInstruction::SetCarryFlag => "scf".into(),
 			&ExInstruction::Push(r) => format!("push {}", r),
 			&ExInstruction::Pop(r)  => format!("pop {}", r),
 			&ExInstruction::Bit(r,b) => format!("bit {},{}",b,r),

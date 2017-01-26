@@ -24,6 +24,8 @@ pub struct Cpu {
     pub pc: u16,
 
     interrupt_master_enable: bool,
+
+    halted: bool,
 }
 
 // F register masks
@@ -63,6 +65,7 @@ impl Default for Cpu {
             pc: INIT_ADDRESS,
 
             interrupt_master_enable: true, // I think the starting value doesn't matter... maybe?
+            halted: false,
         }
 	}
 }
@@ -106,22 +109,60 @@ impl Cpu {
         }
     }
 
+    pub fn step(&mut self, itct: &mut Interconnect, vbuff: &mut VideoBuffer) -> (instruction::Instruction, u64) {
+        if !self.halted {
+            self.unhalted_step(itct, vbuff)
+        }
+        else {
+            (instruction::Instruction {
+                ex: ExInstruction::Nop,
+                bytes: vec![0x00u8],
+                cycles: 4,
+            },
+            if self.interrupt_phase(itct, vbuff, 4) {
+                self.halted = false;
+                24
+            } else {
+                4
+            })
+        }
+    }
+
     // It returns the instruction along with the total number of machine cycles performed
     // Note that this is the real number of cycles, not the one stored in the instruction
     // because some other things may happen
-    pub fn step(&mut self, itct: &mut Interconnect, vbuff: &mut VideoBuffer) -> (instruction::Instruction, u64) {
+    fn unhalted_step(&mut self, itct: &mut Interconnect, vbuff: &mut VideoBuffer) -> (instruction::Instruction, u64) {
         // get instruction and instruction length from memory with pc
         let inst_addr = self.pc;
         let next_instruction = instruction::get_next_instruction(itct, inst_addr);
-        let mut additional_cycles = 0; // For conditinal jumps/calls/rets, how many extra
-                                            // cpu cycles it will take
 
         // increment pc with instruction length
         self.pc = self.pc.wrapping_add(next_instruction.bytes.len() as u16);
 
+        let additional_cycles = self.execute_instruction(itct, &next_instruction, inst_addr);
+
+        let mut total_cycles = next_instruction.cycles + additional_cycles;
+
+        if self.interrupt_phase(itct, vbuff, total_cycles) {
+            total_cycles += 20;
+        }
+
+        (instruction::Instruction {
+            ex: next_instruction.ex,
+            bytes: next_instruction.bytes,
+            cycles: next_instruction.cycles,
+        }, total_cycles)
+    }
+
+    fn execute_instruction(&mut self, itct: &mut Interconnect, inst: &instruction::Instruction, inst_addr: u16) -> u64 {
+        let mut additional_cycles = 0;
         // execute instruction
-        match next_instruction.ex {
+        match inst.ex {
             ExInstruction::Nop => {},
+
+            ExInstruction::Halt => {
+                self.halted = true;
+            },
 
             ExInstruction::Load8(dst, src) => {
                 let val = self.read_8bit_register(itct, src);
@@ -164,9 +205,49 @@ impl Cpu {
                 self.load_16bit_register(Reg16::HL, new_hl);
             },
 
+            ExInstruction::LoadHLSP(offset) => {
+                let sp_val = self.sp;
+                let added_val = (offset as i16) as u16;
+
+                let (new_val, carry) = sp_val.overflowing_add(added_val);
+                let half_carry = (((sp_val & 0x0FFF) + (added_val & 0x0FFF)) & 0xF000) != 0;
+
+                self.load_16bit_register(Reg16::HL, new_val);
+
+                self.reset_flag(Flag::Z);
+                self.reset_flag(Flag::N);
+                if carry {
+                    self.set_flag(Flag::C);
+                } else {
+                    self.reset_flag(Flag::C);
+                }
+                if half_carry {
+                    self.set_flag(Flag::H);
+                } else {
+                    self.reset_flag(Flag::H);
+                }
+            },
+
+            ExInstruction::LoadSPHL => {
+                let hl_val = self.read_16bit_register(Reg16::HL);
+                self.sp = hl_val;
+            },
+
             ExInstruction::AddA(r) => {
                 let a_val = self.a;
                 let other_val = self.read_8bit_register(itct, r);
+                self.a = self.add_update_flags(a_val, other_val);
+            },
+
+            ExInstruction::AddAC(r) => {
+                let other_val = if self.get_flag(Flag::C) {
+                    self.read_8bit_register(itct, r).wrapping_add(1)
+                } else {
+                    self.read_8bit_register(itct, r)
+                };
+
+                let a_val = self.a;
+
                 self.a = self.add_update_flags(a_val, other_val);
             },
 
@@ -194,6 +275,23 @@ impl Cpu {
             ExInstruction::SubA(r) => {
                 let a_val = self.a;
                 let other_val = self.read_8bit_register(itct, r);
+                self.a = self.sub_update_flags(a_val, other_val);
+            },
+
+            ExInstruction::SubAC(r) => {
+                let other_val = if self.get_flag(Flag::C) {
+                    self.read_8bit_register(itct, r).wrapping_add(1)
+                } else {
+                    self.read_8bit_register(itct, r)
+                };
+
+                let a_val = self.a;
+
+                self.a = self.sub_update_flags(a_val, other_val);
+            },
+
+            ExInstruction::SubAImm(other_val) => {
+                let a_val = self.a;
                 self.a = self.sub_update_flags(a_val, other_val);
             },
 
@@ -374,6 +472,14 @@ impl Cpu {
                 self.pc = a;
             },
 
+            ExInstruction::CallC(a, c) => {
+                if self.cond(c) {
+                    self.push(itct, Reg16::PC);
+                    self.pc = a;
+                    additional_cycles = 12;
+                }
+            },
+
             ExInstruction::Return => {
                 self.pop(itct, Reg16::PC);
             },
@@ -409,6 +515,12 @@ impl Cpu {
                 self.sub_update_flags(acc, val);
             },
 
+            ExInstruction::SetCarryFlag => {
+                self.set_flag(Flag::C);
+                self.reset_flag(Flag::N);
+                self.reset_flag(Flag::H);
+            }
+
             ExInstruction::DisableInterrupts => {
                 self.interrupt_master_enable = false;
             },
@@ -418,28 +530,31 @@ impl Cpu {
             },
 
             ExInstruction::Unimplemented => {
-                panic!("Uninmplemented instruction {:02X} at address {:04X}", next_instruction.bytes[0], inst_addr);
+                panic!("Uninmplemented instruction {:02X} at address {:04X}", inst.bytes[0], inst_addr);
             },
 
             _ => {
-                panic!("Instruction `{:?}' not implemented yet", next_instruction.ex);
-            }
-        };
-
-        let mut total_cycles = next_instruction.cycles + additional_cycles;
-        // Handle interrupts
-        if let Some(interrupt) = itct.advance_cycles(total_cycles, vbuff) {
-            if self.interrupt_master_enable {
-                total_cycles += 20;
-                self.handle_interrupt(interrupt, itct);
+                panic!("Instruction `{:?}' not implemented yet", inst.ex);
             }
         }
 
-        (instruction::Instruction {
-            ex: next_instruction.ex,
-            bytes: next_instruction.bytes,
-            cycles: next_instruction.cycles,
-        }, total_cycles)
+        additional_cycles
+    }
+
+    // Returns true if an interrupt was executed, false otherwise
+    fn interrupt_phase(&mut self, itct: &mut Interconnect, vbuff: &mut VideoBuffer, n_cycles: u64) -> bool {
+        // Handle interrupts
+        if let Some(interrupt) = itct.advance_cycles(n_cycles, vbuff) {
+            if self.interrupt_master_enable {
+                self.handle_interrupt(interrupt, itct);
+                true
+            } else {
+                false
+            }
+        }
+        else {
+            false
+        }
     }
 
     pub fn read_8bit_register(&self, interconnect: &Interconnect, reg: Reg8) -> u8 {

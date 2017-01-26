@@ -9,7 +9,7 @@ pub struct ROM {
 	// Current ROM bank should really be a u8, and that's the way it should be "interfaced"
 	// but storing it as a u16 makes it so that you only have to cast when switching banks, but
 	// not every time you access BankN
-	current_rom_bank: u16,
+	current_rom_bank: u8,
 }
 
 impl ROM {
@@ -20,7 +20,7 @@ impl ROM {
 			boot_rom: boot_rom,
 			cart_rom: cart_rom,
 
-			current_rom_bank: 1u16,
+			current_rom_bank: 1u8,
 		}
 	}
 
@@ -36,9 +36,8 @@ impl ROM {
 			},
 
 			mem_map::Addr::BankN(i) => {
-				println!("current rom bank: {}", self.current_rom_bank);
-				let real_rom_addr: u16 = (self.current_rom_bank * mem_map::CARTRIDGE_BANK_LENGTH) + i;
-				self.cart_rom[real_rom_addr as usize]
+				let real_rom_addr: usize = ((self.current_rom_bank as usize) * (mem_map::CARTRIDGE_BANK_LENGTH as usize)) + (i as usize);
+				self.cart_rom[real_rom_addr]
 			},
 
 			_ => {
@@ -52,7 +51,7 @@ impl ROM {
 	pub fn write_rom(&mut self, addr: mem_map::Addr, val: u8) {
 		match addr {
 			mem_map::Addr::Bank0(0x2000u16) => { //TODO: Extract to constant?
-				self.current_rom_bank = val as u16;
+				self.current_rom_bank = val;
 			}
 
 			_ => {
