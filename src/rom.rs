@@ -73,7 +73,7 @@ impl ROM {
 			has_ram: ram,
 
 			n_rom_banks: n_rom_banks,
-			current_rom_bank_start: 0x4000,
+			current_rom_bank_start: mem_map::CARTRIDGE_BANKN_START as usize,
 
 			n_ram_banks: n_ram_banks,
 		}

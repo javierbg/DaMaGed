@@ -433,6 +433,12 @@ impl Cpu {
                 self.set_flag(Flag::H);
             },
 
+            ExInstruction::Set(r, b) =>  {
+                let v = self.read_8bit_register(itct, r);
+                let bit = 0x01 << b;
+                self.load_8bit_register(itct, r, v | bit);
+            },
+
             ExInstruction::Res(r, b) => {
                 let bit = 0xFEu8.rotate_left(b);
                 let oldval = self.read_8bit_register(itct, r);
