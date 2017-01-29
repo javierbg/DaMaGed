@@ -251,6 +251,11 @@ impl Cpu {
                 self.a = self.add_update_flags(a_val, other_val);
             },
 
+            ExInstruction::AddAImm(v) => {
+                let a_val = self.a;
+                self.a = self.add_update_flags(a_val, v);
+            },
+
             ExInstruction::AddHL(r) => {
                 let hl_val = self.read_16bit_register(Reg16::HL);
                 let other_val = self.read_16bit_register(r);
@@ -420,6 +425,36 @@ impl Cpu {
                 self.load_8bit_register(itct, reg, new_val);
             },
 
+            ExInstruction::Shift(reg, dir, arithmetic) => {
+                let old_val = self.read_8bit_register(itct, reg);
+                let mut new_val: u8;
+
+                if arithmetic {
+                    let old_val = old_val as i8;
+
+                    if dir { // left
+                        new_val = old_val.wrapping_shl(1) as u8;
+                        if (old_val & 0b1000_0000) != 0 { self.set_flag(Flag::C) } else { self.reset_flag(Flag::C) };
+                    } else { // right
+                        new_val = old_val.wrapping_shr(1) as u8;
+                        if (old_val & 0b0000_0001) != 0 { self.set_flag(Flag::C) } else { self.reset_flag(Flag::C) };
+                    }
+
+                } else { // logical shift
+                    // always right
+                    // same as a right arithmetic shift, but this time the value is unsigned
+                    // and so a 0 is inserted on the left
+                    new_val = old_val.wrapping_shr(1);
+                    if (old_val & 0b0000_0001) != 0 { self.set_flag(Flag::C) } else { self.reset_flag(Flag::C) };
+                }
+
+                self.reset_flag(Flag::N);
+                self.reset_flag(Flag::H);
+                if new_val == 0 { self.set_flag(Flag::Z) } else { self.reset_flag(Flag::Z) };
+
+                self.load_8bit_register(itct, reg, new_val);
+            },
+
             ExInstruction::Bit(r, b) => {
                 let v = self.read_8bit_register(itct, r);
                 let bit = (v >> b) & 0x01;
@@ -540,7 +575,7 @@ impl Cpu {
             },
 
             _ => {
-                panic!("Instruction `{:?}' not implemented yet", inst.ex);
+                panic!("Instruction `{:?}' not implemented yet: {:?}", inst.ex, inst.bytes);
             }
         }
 

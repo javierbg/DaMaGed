@@ -35,8 +35,9 @@ impl ROM {
 
 		let (cart_type, battery, ram) = match cart_rom[0x147] {
 			0x00 => (CartridgeType::RomOnly, false, false),
+			0x01 => (CartridgeType::MBC1, false, false),
 			0x13 => (CartridgeType::MBC3, true, true),
-			_ => panic!("Unimplemented cartridge type"),
+			_ => panic!("Unimplemented cartridge type: {:02X}", cart_rom[0x147]),
 		};
 
 		let n_rom_banks = match cart_rom[0x148] {
