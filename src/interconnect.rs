@@ -43,7 +43,9 @@ impl Interconnect {
 
 			Addr::InternalRam(a) => self.internal_ram[a as usize],
 
+			Addr::VRam(a) => self.io.ppu.vram[a as usize],
 			Addr::SpriteRam(a) => self.io.ppu.read_sprite_entry(a),
+			
 			Addr::HardwareIO(a) => self.io.read_byte(a),
 
 			Addr::HighRam(a) => self.high_ram[a as usize],

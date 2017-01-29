@@ -282,8 +282,9 @@ impl PPU {
 
 		let start_of_row = pix_y * SCREEN_WIDTH;
 
-		let tile_row        = ((pix_y as u8).wrapping_add(self.scroll_y) / 8) as usize;
-		let tile_row_offset = ((pix_y as u8).wrapping_add(self.scroll_y) % 8) as usize;
+		let real_y = (pix_y as u8).wrapping_add(self.scroll_y);
+		let tile_row        = (real_y / 8) as usize;
+		let tile_row_offset = (real_y % 8) as usize;
 
 		for pix_x in 0..SCREEN_WIDTH {
 			//TODO: A lot of the computations can be optimized
@@ -292,9 +293,9 @@ impl PPU {
 			}
 			else {
 				// Draw Background
-
-				let tile_col        = ((pix_x as u8).wrapping_add(self.scroll_x) / 8) as usize;
-				let tile_col_offset = ((pix_x as u8).wrapping_add(self.scroll_x) % 8) as usize;
+				let real_x = (pix_x as u8).wrapping_add(self.scroll_x);
+				let tile_col        = (real_x / 8) as usize;
+				let tile_col_offset = (real_x % 8) as usize;
 
 				let tile = self.read_bg_tile(tile_row, tile_col);
 				let pix_value = tile[tile_row_offset][tile_col_offset];
@@ -306,7 +307,7 @@ impl PPU {
 			}
 
 			// Draw sprites
-			
+
 			self.mode_flag = 0b00; // HBlank period
 		}
 		self.lcdc_y_coordinate += 1;

@@ -16,6 +16,7 @@ const CYCLES_PER_FRAME:  u64 = 70_256;
 enum ExecutionMode {
 	Running,
 	Debugging,
+	Exiting,
 }
 
 #[derive(Clone, Copy)]
@@ -28,6 +29,7 @@ enum DebugCommand {
 	PrintCpuRegs, // Print all CPU registers
 	Step, // Execute just one CPU instruction
 	LastCommand, // Repeat last command
+	ExitDebug, // Exit debug mode, continue in graphical mode
 }
 
 pub struct Emulator {
@@ -59,23 +61,29 @@ impl Emulator {
 	pub fn run(&mut self) {
 		self.print_info();
 
-		match self.mode {
-			ExecutionMode::Running => {
-				let w_options = WindowOptions {
-					borderless: false,
-					title: true,
-					resize: false,
-					scale: Scale::X2,
-				};
+		'emulator : loop {
+			match self.mode {
+				ExecutionMode::Running => {
+					let w_options = WindowOptions {
+						borderless: false,
+						title: true,
+						resize: false,
+						scale: Scale::X2,
+					};
 
-				match  Window::new("DaMaGed", 160, 144, w_options) {
-					Ok(mut window) => self.run_window(&mut window),
-					Err(err) => println!("Error creating window: {}", err),
-				}
-			}
+					match  Window::new("DaMaGed", 160, 144, w_options) {
+						Ok(mut window) => self.run_window(&mut window),
+						Err(err) => println!("Error creating window: {}", err),
+					}
+				},
 
-			ExecutionMode::Debugging => {
-				self.run_debug_mode();
+				ExecutionMode::Debugging => {
+					self.run_debug_mode();
+				},
+
+				ExecutionMode::Exiting => {
+					break 'emulator;
+				},
 			}
 		}
 	}
@@ -84,7 +92,7 @@ impl Emulator {
 		let frame_duration: Duration = Duration::new(0,16750419);
 		let mut frame_start = Instant::now();
 
-		while window.is_open() && !window.is_key_down(Key::Escape) {
+		'window : while window.is_open() {
 			let mut vbuff = VideoBuffer::default();
 
 			self.gb.step(&mut vbuff);
@@ -99,6 +107,15 @@ impl Emulator {
 				}
 
 				frame_start = Instant::now();
+			}
+
+			if window.is_key_down(Key::F12) {
+				self.mode = ExecutionMode::Debugging;
+				break 'window;
+			}
+			else if window.is_key_down(Key::Escape) {
+				self.mode = ExecutionMode::Exiting;
+				break 'window;
 			}
 		}
 	}
@@ -173,7 +190,7 @@ impl Emulator {
 		let stdin = io::stdin();
 		let mut stdin_buffer = String::new();
 
-		loop{
+		'debug: loop{
 			print!("> ");
 			stdout.flush();
 
@@ -186,12 +203,19 @@ impl Emulator {
 
 			if let Some(comm) = Self::parse_debug_operation(&stdin_buffer) {
 				match comm {
-					DebugCommand::Quit => break,
+					DebugCommand::Quit => {
+						self.mode = ExecutionMode::Exiting;
+						break 'debug;
+					}
 					DebugCommand::LastCommand => {
 						if let Some(last_comm) = self.last_command {
 							self.execute_debug_command(last_comm);
 						}
 					},
+					DebugCommand::ExitDebug => {
+						self.mode = ExecutionMode::Running;
+						break 'debug;
+					}
 					_ => {
 						self.last_command = Some(comm);
 						self.execute_debug_command(comm);
@@ -286,6 +310,8 @@ impl Emulator {
 			}
 
 			"s" => Some(DebugCommand::Step),
+
+			"g" => Some(DebugCommand::ExitDebug),
 
 			_ => None
 		}
