@@ -1,3 +1,5 @@
+# THIS REPO MOVED TO [GITLAB](https://gitlab.com/javierbg/DaMaGed) AND IS NOW JUST AN ARCHIVE
+
 # DaMaGed
 
 ![DaMaGed logo](/misc/damaged_logo.png)
