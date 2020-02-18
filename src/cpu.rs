@@ -434,7 +434,7 @@ impl Cpu {
 
                     if dir { // left
                         new_val = old_val.wrapping_shl(1) as u8;
-                        if (old_val & 0b1000_0000) != 0 { self.set_flag(Flag::C) } else { self.reset_flag(Flag::C) };
+                        if (old_val & 0b1000_0000_u8 as i8) != 0 { self.set_flag(Flag::C) } else { self.reset_flag(Flag::C) };
                     } else { // right
                         new_val = old_val.wrapping_shr(1) as u8;
                         if (old_val & 0b0000_0001) != 0 { self.set_flag(Flag::C) } else { self.reset_flag(Flag::C) };
